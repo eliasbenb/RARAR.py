@@ -25,11 +25,11 @@ def setup_logging(debug: bool = False) -> None:
         logger.debug("Debug logging enabled")
 
 
-def list_rar_contents(url: str, json_output: bool = False) -> list[RarFile]:
+def list_rar_contents(source: str, json_output: bool = False) -> list[RarFile]:
     """List contents of a RAR archive and display results.
 
     Args:
-        url (str): URL of the RAR archive
+        source (str): URL or path to the RAR archive
         json_output (bool): Whether to output as JSON
 
     Returns:
@@ -37,12 +37,12 @@ def list_rar_contents(url: str, json_output: bool = False) -> list[RarFile]:
     """
     logger = logging.getLogger("rarar")
     try:
-        logger.debug(f"Analyzing RAR archive at: {url}")
-        reader = RarReader(url)
+        logger.debug(f"Analyzing RAR archive at: {source}")
+        reader = RarReader(source)
 
         files = []
         if not json_output:
-            logger.info(f"RAR Archive: {url}")
+            logger.info(f"RAR Archive: {source}")
 
             for i, file in enumerate(reader.iter_files(), 1):
                 files.append(file)
@@ -63,11 +63,11 @@ def list_rar_contents(url: str, json_output: bool = False) -> list[RarFile]:
         return []
 
 
-def download_file(url: str, file_index: int) -> bool:
+def download_file(source: str, file_index: int) -> bool:
     """Download a specific file from the RAR archive.
 
     Args:
-        url (str): URL of the RAR archive
+        source (str): URL or path to the RAR archive
         file_index (int): 1-based index of the file to download
 
     Returns:
@@ -75,7 +75,7 @@ def download_file(url: str, file_index: int) -> bool:
     """
     logger = logging.getLogger("rarar")
     try:
-        reader = RarReader(url)
+        reader = RarReader(source)
 
         i = 0
         file_to_download: RarFile | None = None
@@ -113,13 +113,13 @@ def main():
     subparsers = parser.add_subparsers(dest="command", help="Command to execute")
 
     list_parser = subparsers.add_parser("list", help="List contents of a RAR archive")
-    list_parser.add_argument("url", help="URL or path to the RAR archive")
+    list_parser.add_argument("source", help="URL or path to the RAR archive")
     list_parser.add_argument("--json", action="store_true", help="Output as JSON")
 
     download_parser = subparsers.add_parser(
         "download", help="Download a file from a RAR archive"
     )
-    download_parser.add_argument("url", help="URL or path to the RAR archive")
+    download_parser.add_argument("source", help="URL or path to the RAR archive")
     download_parser.add_argument(
         "file_index", type=int, help="1-based index of the file to download"
     )
@@ -134,12 +134,12 @@ def main():
         sys.exit(1)
 
     if args.command == "list":
-        files = list_rar_contents(args.url, args.json)
+        files = list_rar_contents(args.source, args.json)
         if not files:
             sys.exit(1)
 
     elif args.command == "download":
-        success = download_file(args.url, args.file_index)
+        success = download_file(args.source, args.file_index)
         if not success:
             sys.exit(1)
 

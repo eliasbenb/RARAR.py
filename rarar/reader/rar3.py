@@ -79,7 +79,6 @@ class Rar3Reader(RarReaderBase):
         Returns:
             tuple[RarFile | None, int]: Tuple of (file_info, next_position)
         """
-        header_offset = position
         head_size = 7  # Default size for header
         logger.debug(f"Parsing RAR3 file header at position {position}")
 
@@ -159,7 +158,7 @@ class Rar3Reader(RarReaderBase):
             logger.debug(f"{'Directory' if is_directory else 'File'}: {file_name}")
 
             # Calculate positions for byte range info
-            data_offset = header_offset + head_size
+            data_offset = position + head_size
             next_pos = data_offset
 
             # If the block has data, skip over it
@@ -173,7 +172,6 @@ class Rar3Reader(RarReaderBase):
                 method=method,
                 crc=file_crc,
                 is_directory=is_directory,
-                header_offset=header_offset,
                 data_offset=data_offset,
                 next_offset=next_pos,
             )
@@ -247,7 +245,7 @@ class Rar3Reader(RarReaderBase):
                         file_count += 1
                         logger.debug(
                             f"Processed file {file_count}: {file_info.name} "
-                            f"(Byte range: {file_info.header_offset}-{file_info.next_offset - 1})"
+                            f"({file_info.size} bytes, {file_info.compressed_size} compressed)"
                         )
                         yield file_info
                 else:

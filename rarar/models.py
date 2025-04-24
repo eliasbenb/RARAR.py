@@ -12,7 +12,6 @@ class RarFile:
     method: int
     crc: int
     is_directory: bool
-    header_offset: int
     data_offset: int
     next_offset: int
 
@@ -24,15 +23,14 @@ class RarFile:
         )
 
         byte_range = (
-            f"Header Range: {self.header_offset}-{self.data_offset - 1}, "
-            + f"Data Range: {self.data_offset}-{self.next_offset - 1}"
+            f", Bytes Range: {self.data_offset}-{self.next_offset - 1}"
             if not self.is_directory
-            else f"Header Range: {self.header_offset}-{self.next_offset - 1}"
+            else ""
         )
 
         return (
             f"{file_type}: {self.name} (Size: {self.size:,} bytes, Compressed: {self.compressed_size:,} bytes, "
-            + f"Method: {method_name}, {byte_range}"
+            + f"Method: {method_name}{byte_range})"
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -51,7 +49,6 @@ class RarFile:
             ),
             "crc": self.crc,
             "is_directory": self.is_directory,
-            "header_range": [self.header_offset, self.data_offset - 1],
             "data_range": [self.data_offset, self.next_offset - 1]
             if not self.is_directory
             else None,

@@ -11,10 +11,10 @@ from ..const import (
     FLAG_HAS_HIGH_SIZE,
     FLAG_HAS_UNICODE_NAME,
     MAX_SEARCH_SIZE,
-    RAR4_BLOCK_END,
-    RAR4_BLOCK_FILE,
-    RAR4_BLOCK_HEADER,
-    RAR4_MARKER,
+    RAR3_BLOCK_END,
+    RAR3_BLOCK_FILE,
+    RAR3_BLOCK_HEADER,
+    RAR3_MARKER,
 )
 from ..exceptions import (
     CompressionNotSupportedError,
@@ -28,11 +28,11 @@ from .base import RarReaderBase
 logger = logging.getLogger("rarar")
 
 
-class Rar4Reader(RarReaderBase):
+class Rar3Reader(RarReaderBase):
     """Reader for RAR 4.x format archives."""
 
     def _find_rar_marker(self) -> int:
-        """Find the RAR4 marker in the file using small chunk requests.
+        """Find the RAR3 marker in the file using small chunk requests.
 
         Returns:
             int: Position of the RAR marker in the file
@@ -43,7 +43,7 @@ class Rar4Reader(RarReaderBase):
         position = 0
         max_search = MAX_SEARCH_SIZE
 
-        logger.debug(f"Searching for RAR4 marker in first {max_search} bytes")
+        logger.debug(f"Searching for RAR3 marker in first {max_search} bytes")
         while position < max_search:
             try:
                 chunk = self.read_bytes(
@@ -52,26 +52,26 @@ class Rar4Reader(RarReaderBase):
                 if not chunk:
                     break
 
-                marker_pos = chunk.find(RAR4_MARKER)
+                marker_pos = chunk.find(RAR3_MARKER)
                 if marker_pos != -1:
                     logger.debug(
-                        f"RAR4 marker found at position {position + marker_pos}"
+                        f"RAR3 marker found at position {position + marker_pos}"
                     )
                     return position + marker_pos
 
                 # Move forward by chunk size minus the marker length to ensure we don't miss it
                 # if it spans two chunks
-                position += max(1, len(chunk) - len(RAR4_MARKER) + 1)
+                position += max(1, len(chunk) - len(RAR3_MARKER) + 1)
 
             except Exception:
-                logger.error("Error while searching for RAR4 marker", exc_info=True)
+                logger.error("Error while searching for RAR3 marker", exc_info=True)
                 raise
 
-        logger.error("RAR4 marker not found within search limit")
-        raise RarMarkerNotFoundError("RAR4 marker not found within search limit")
+        logger.error("RAR3 marker not found within search limit")
+        raise RarMarkerNotFoundError("RAR3 marker not found within search limit")
 
     def _parse_file_header(self, position: int) -> tuple[RarFile | None, int]:
-        """Parse a RAR4 file header block and return the file info and next position.
+        """Parse a RAR3 file header block and return the file info and next position.
 
         Args:
             position (int): Starting position of the file header
@@ -81,7 +81,7 @@ class Rar4Reader(RarReaderBase):
         """
         header_offset = position
         head_size = 7  # Default size for header
-        logger.debug(f"Parsing RAR4 file header at position {position}")
+        logger.debug(f"Parsing RAR3 file header at position {position}")
 
         # TODO: OS-independent path parsing
         try:
@@ -89,11 +89,11 @@ class Rar4Reader(RarReaderBase):
             header_data = self.read_bytes(position, 7)
 
             # Extract basic header fields
-            head_crc, head_type, head_flags = struct.unpack("<HBH", header_data[:5])
+            _head_crc, head_type, head_flags = struct.unpack("<HBH", header_data[:5])
             head_size = struct.unpack("<H", header_data[5:7])[0]
 
             # If not a file block, skip it
-            if head_type != RAR4_BLOCK_FILE:
+            if head_type != RAR3_BLOCK_FILE:
                 logger.debug(f"Not a file block (type: {head_type}), skipping")
                 return None, position + head_size
 
@@ -104,13 +104,13 @@ class Rar4Reader(RarReaderBase):
             # Parse file header fields
             pack_size = struct.unpack("<I", reader.read(4))[0]
             unp_size = struct.unpack("<I", reader.read(4))[0]
-            host_os = reader.read(1)[0]
+            _host_os = reader.read(1)[0]
             file_crc = struct.unpack("<I", reader.read(4))[0]
-            ftime = struct.unpack("<I", reader.read(4))[0]
-            unp_ver = reader.read(1)[0]
+            _ftime = struct.unpack("<I", reader.read(4))[0]
+            _unp_ver = reader.read(1)[0]
             method = reader.read(1)[0]
             name_size = struct.unpack("<H", reader.read(2))[0]
-            attr = struct.unpack("<I", reader.read(4))[0]
+            _attr = struct.unpack("<I", reader.read(4))[0]
 
             # Initialize high pack/unp sizes
             high_pack_size = 0
@@ -192,7 +192,7 @@ class Rar4Reader(RarReaderBase):
             )
 
     def iter_files(self) -> Generator[RarFile, None, None]:
-        """Iterate through all files in the RAR4 archive.
+        """Iterate through all files in the RAR3 archive.
 
         Yields:
             RarFile: RarFile objects in the archive one by one
@@ -202,19 +202,19 @@ class Rar4Reader(RarReaderBase):
             InvalidRarFormatError: If the archive format is invalid
             NetworkError: If there's a network-related error
         """
-        logger.debug("Finding RAR4 marker...")
+        logger.debug("Finding RAR3 marker...")
         pos = self._find_rar_marker()
-        logger.debug(f"RAR4 marker found at position {pos}")
-        pos += len(RAR4_MARKER)  # Skip marker block
+        logger.debug(f"RAR3 marker found at position {pos}")
+        pos += len(RAR3_MARKER)  # Skip marker block
 
         logger.debug("Reading archive header...")
         header_data = self.read_bytes(pos, 7)
         head_type = header_data[2]
         head_size = struct.unpack("<H", header_data[5:7])[0]
 
-        if head_type != RAR4_BLOCK_HEADER:
-            logger.error("Invalid RAR4 format - archive header not found")
-            raise InvalidRarFormatError("Invalid RAR4 format: archive header not found")
+        if head_type != RAR3_BLOCK_HEADER:
+            logger.error("Invalid RAR3 format - archive header not found")
+            raise InvalidRarFormatError("Invalid RAR3 format: archive header not found")
 
         pos += head_size  # Skip archive header
         logger.debug(f"Archive header processed, moving to position {pos}")
@@ -235,12 +235,12 @@ class Rar4Reader(RarReaderBase):
                 head_size = struct.unpack("<H", header_data[5:7])[0]
 
                 # Check if we've reached the end of archive marker
-                if head_type == RAR4_BLOCK_END:
+                if head_type == RAR3_BLOCK_END:
                     logger.debug("End of archive marker found")
                     break
 
                 # Check if we have a file block
-                if head_type == RAR4_BLOCK_FILE:
+                if head_type == RAR3_BLOCK_FILE:
                     logger.debug(f"Found file entry at position {pos}")
                     file_info, pos = self._parse_file_header(pos)
                     if file_info:

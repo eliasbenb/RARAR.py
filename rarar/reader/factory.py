@@ -6,7 +6,7 @@ from urllib.parse import urlsplit
 
 import requests
 
-from ..const import DEFAULT_CHUNK_SIZE, MAX_SEARCH_SIZE, RAR4_MARKER, RAR5_MARKER
+from ..const import DEFAULT_CHUNK_SIZE, MAX_SEARCH_SIZE, RAR3_MARKER, RAR5_MARKER
 from ..exceptions import (
     RarMarkerNotFoundError,
     UnknownSourceTypeError,
@@ -14,7 +14,7 @@ from ..exceptions import (
 )
 from .base import RarReaderBase
 from .http_file import HttpFile
-from .rar4 import Rar4Reader
+from .rar3 import Rar3Reader
 from .rar5 import Rar5Reader
 
 logger = logging.getLogger("rarar")
@@ -51,7 +51,7 @@ def RarReader(
         force_version (int | None): Force a specific RAR version (4 or 5)
 
     Returns:
-        RarReaderBase: Either a Rar4Reader or Rar5Reader instance
+        RarReaderBase: Either a Rar3Reader or Rar5Reader instance
 
     Raises:
         UnsupportedRarVersionError: If the RAR version is not supported
@@ -59,7 +59,7 @@ def RarReader(
     """
     if force_version is not None:
         if force_version == 4:
-            return Rar4Reader(source, chunk_size, session)
+            return Rar3Reader(source, chunk_size, session)
         elif force_version == 5:
             return Rar5Reader(source, chunk_size, session)
         else:
@@ -96,8 +96,8 @@ def RarReader(
                 if not chunk:
                     break
 
-                # Check for RAR4 marker
-                marker_pos = chunk.find(RAR4_MARKER)
+                # Check for RAR3 marker
+                marker_pos = chunk.find(RAR3_MARKER)
                 if marker_pos != -1:
                     if can_reset:
                         file_obj.seek(0)
@@ -128,7 +128,7 @@ def RarReader(
             file_obj.close()
 
     if version == 4:
-        return Rar4Reader(source, chunk_size, session)
+        return Rar3Reader(source, chunk_size, session)
     elif version == 5:
         return Rar5Reader(source, chunk_size, session)
     else:

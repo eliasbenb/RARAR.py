@@ -2,6 +2,9 @@
     "[python]": {
         "editor.defaultFormatter": "charliermarsh.ruff"
     },
+    "[tex]": {
+        "editor.wordWrap": "on"
+    },
     "python.defaultInterpreterPath": ".venv/bin/python",
     "ruff.fixAll": true,
     "ruff.organizeImports": true

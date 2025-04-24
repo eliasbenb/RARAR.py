@@ -9,12 +9,13 @@
 	"containerEnv": {
 		"UV_LINK_MODE": "copy"
 	},
-	"postCreateCommand": "uv sync --all-packages",
+	"postCreateCommand": "uv sync --all-packages ; sudo apt update && sudo apt install texlive-full -y",
 	"customizations": {
 		"vscode": {
 			"extensions": [
 				"ms-python.python",
-				"charliermarsh.ruff"
+				"charliermarsh.ruff",
+				"James-Yu.latex-workshop"
 			]
 		}
 	}

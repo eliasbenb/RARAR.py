@@ -3,6 +3,7 @@ import json
 import logging
 import sys
 
+from .exceptions import RaRarError
 from .models import RarFile
 from .reader import RarReader
 
@@ -38,21 +39,27 @@ def list_rar_contents(url: str, json_output: bool = False) -> list[RarFile]:
     try:
         logger.debug(f"Analyzing RAR archive at: {url}")
         reader = RarReader(url)
-        files = reader.list_files()
 
+        files = []
         if not json_output:
             logger.info(f"RAR Archive: {url}")
-            logger.info(f"Found {len(files)} files/directories:")
 
-            for i, file in enumerate(files, 1):
-                logger.info(f"  {i}. {file}")
+            for i, file in enumerate(reader.iter_files(), 1):
+                files.append(file)
+                logger.info(f"  {i}. {file.name} ({file.size} bytes)")
+
+            logger.info(f"Found {len(files)} files/directories:")
         else:
+            files = reader.list_files()
             json_data = [file.to_dict() for file in files]
             print(json.dumps(json_data, indent=2))
 
         return files
+    except RaRarError as e:
+        logger.error(e)
+        return []
     except Exception as e:
-        logger.error(f"Error: {e}")
+        logger.error(f"Unknown error occured while listing RAR archive: {e}")
         return []
 
 
@@ -88,8 +95,11 @@ def download_file(url: str, file_index: int) -> bool:
 
         reader.download_file(file_to_download)
         return True
+    except RaRarError as e:
+        logger.error(e)
+        return False
     except Exception as e:
-        logger.error(f"Error downloading file: {e}")
+        logger.error(f"Unknown error occurred while downloading: {e}")
         return False
 
 

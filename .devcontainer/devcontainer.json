@@ -9,7 +9,7 @@
 	"containerEnv": {
 		"UV_LINK_MODE": "copy"
 	},
-	"postCreateCommand": "uv sync --all-packages ; sudo apt update && sudo apt install texlive-full -y",
+	"postCreateCommand": ".devcontainer/setup.sh",
 	"customizations": {
 		"vscode": {
 			"extensions": [

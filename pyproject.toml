@@ -1,0 +1,44 @@
+[project]
+name = "rarar"
+version = "0.1.0"
+description = "Random Access RAR Reader - Access RAR archives without loading the entire file into memory, compatible with HTTP range requests."
+readme = "README.md"
+requires-python = ">=3.10"
+
+authors = [
+    { name = "Elias Benbourenane", email = "eliasbenbourenane@gmail.com" }
+]
+maintainers = [
+    { name = "Elias Benbourenane", email = "eliasbenbourenane@gmail.com" }
+]
+
+dependencies = [
+    "requests>=2.32.3",
+    "validators>=0.34.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/eliasbenb/RARAR.py"
+Documentation = "https://github.com/eliasbenb/RARAR.py"
+Source = "https://github.com/eliasbenb/RARAR.py"
+Issues = "https://github.com/eliasbenb/RARAR.py/issues"
+
+[project.scripts]
+rarar = "rarar.cli:main"
+
+[build-system]
+requires = ["setuptools>=79.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["rarar"]
+
+[tool.pyright]
+include = ["rarar"]
+
+[dependency-groups]
+dev = [
+    "build>=1.2.2.post1",
+    "pytest>=8.3.5",
+    "twine>=6.1.0",
+]

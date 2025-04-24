@@ -445,7 +445,6 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "requests" },
-    { name = "validators" },
 ]
 
 [package.dev-dependencies]
@@ -456,10 +455,7 @@ dev = [
 ]
 
 [package.metadata]
-requires-dist = [
-    { name = "requests", specifier = ">=2.32.3" },
-    { name = "validators", specifier = ">=0.34.0" },
-]
+requires-dist = [{ name = "requests", specifier = ">=2.32.3" }]
 
 [package.metadata.requires-dev]
 dev = [
@@ -620,15 +616,6 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/8a/78/16493d9c386d8e60e442a35feac5e00f0913c0f4b7c217c11e8ec2ff53e0/urllib3-2.4.0.tar.gz", hash = "sha256:414bc6535b787febd7567804cc015fee39daab8ad86268f1310a9250697de466", size = 390672, upload_time = "2025-04-10T15:23:39.232Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/6b/11/cc635220681e93a0183390e26485430ca2c7b5f9d33b15c74c2861cb8091/urllib3-2.4.0-py3-none-any.whl", hash = "sha256:4e16665048960a0900c702d4a66415956a584919c03361cac9f1df5c5dd7e813", size = 128680, upload_time = "2025-04-10T15:23:37.377Z" },
-]
-
-[[package]]
-name = "validators"
-version = "0.34.0"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/64/07/91582d69320f6f6daaf2d8072608a4ad8884683d4840e7e4f3a9dbdcc639/validators-0.34.0.tar.gz", hash = "sha256:647fe407b45af9a74d245b943b18e6a816acf4926974278f6dd617778e1e781f", size = 70955, upload_time = "2024-09-03T17:45:04.386Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/6e/78/36828a4d857b25896f9774c875714ba4e9b3bc8a92d2debe3f4df3a83d4f/validators-0.34.0-py3-none-any.whl", hash = "sha256:c804b476e3e6d3786fa07a30073a4ef694e617805eb1946ceee3fe5a9b8b1321", size = 43536, upload_time = "2024-09-03T17:45:01.127Z" },
 ]
 
 [[package]]

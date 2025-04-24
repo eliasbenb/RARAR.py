@@ -3,9 +3,9 @@ import logging
 import pathlib
 import struct
 from typing import BinaryIO, Generator
+from urllib.parse import urlsplit
 
 import requests
-import validators
 
 from .const import (
     COMPRESSION_METHODS,
@@ -118,10 +118,9 @@ class RarReader:
             chunk_size (int): Size of chunks to read when searching
             session (requests.Session | None): Session to use for HTTP requests if source is a URL
         """
-        # If source is a BinaryIO type, use it directly
         if isinstance(source, BinaryIO):
             self.file_obj = source
-        elif validators.url(source):
+        elif self._is_url(source):
             self.file_obj = HttpFile(source, session)
         elif pathlib.Path(source).is_file():
             self.file_obj = open(source, "rb")
@@ -130,6 +129,22 @@ class RarReader:
 
         self.chunk_size = chunk_size
         self.total_read = 0
+
+    @staticmethod
+    def _is_url(source: str) -> bool:
+        """Check if the source is a URL.
+
+        Args:
+            source (str): The source to check
+
+        Returns:
+            bool: True if the source is a URL, False otherwise
+        """
+        try:
+            result = urlsplit(source)
+            return bool(result.scheme and result.netloc)
+        except ValueError:
+            return False
 
     def read_bytes(self, start: int, length: int) -> bytes:
         """Read a range of bytes from the file-like object.

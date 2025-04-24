@@ -1,21 +1,45 @@
 # RAR marker and block types
-RAR_MARKER = b"\x52\x61\x72\x21\x1a\x07\x00"
-RAR_BLOCK_FILE = 0x74
-RAR_BLOCK_HEADER = 0x73
-RAR_BLOCK_MARKER = 0x72
-RAR_BLOCK_END = 0x7B
+RAR4_MARKER = b"\x52\x61\x72\x21\x1a\x07\x00"
+RAR5_MARKER = b"\x52\x61\x72\x21\x1a\x07\x01\x00"
+
+# RAR4 block types
+RAR4_BLOCK_FILE = 0x74
+RAR4_BLOCK_HEADER = 0x73
+RAR4_BLOCK_MARKER = 0x72
+RAR4_BLOCK_END = 0x7B
+
+# RAR5 block types
+RAR5_BLOCK_MAIN = 1
+RAR5_BLOCK_FILE = 2
+RAR5_BLOCK_SERVICE = 3
+RAR5_BLOCK_ENCRYPTION = 4
+RAR5_BLOCK_END = 5
 
 # Default chunk size for searching and reading
 DEFAULT_CHUNK_SIZE = 4096
-MAX_SEARCH_SIZE = 1024 * 1024  # 1MB
+MAX_SEARCH_SIZE = 1024 * 1024
 
 # Header flags
-FLAG_DIRECTORY = 0xE0  # File is a directory
-FLAG_HAS_HIGH_SIZE = 0x100  # Has 64-bit size values
-FLAG_HAS_UNICODE_NAME = 0x200  # Has Unicode filename
-FLAG_HAS_DATA = 0x8000  # Has additional data
+FLAG_DIRECTORY = 0xE0
+FLAG_HAS_HIGH_SIZE = 0x100
+FLAG_HAS_UNICODE_NAME = 0x200
+FLAG_HAS_DATA = 0x8000
 
-# Compression methods
+# RAR5 header flags
+RAR5_FLAG_EXTRA_PRESENT = 0x0001
+RAR5_FLAG_DATA_PRESENT = 0x0002
+RAR5_FLAG_SKIP_IF_UNKNOWN = 0x0004
+RAR5_FLAG_DATA_CONTINUES = 0x0008
+RAR5_FLAG_DATA_CONTINUES_NEXT = 0x0010
+RAR5_FLAG_DEPENDENT = 0x0020
+RAR5_FLAG_PRESERVE_CHILD = 0x0040
+
+# RAR5 file flags
+RAR5_FILE_FLAG_DIRECTORY = 0x0001
+RAR5_FILE_FLAG_TIME_PRESENT = 0x0002
+RAR5_FILE_FLAG_CRC_PRESENT = 0x0004
+RAR5_FILE_FLAG_UNKNOWN_SIZE = 0x0008
+
 COMPRESSION_METHODS: dict[int, str] = {
     0x30: "Store",
     0x31: "Fastest",
@@ -26,4 +50,21 @@ COMPRESSION_METHODS: dict[int, str] = {
 }
 COMPRESSION_METHODS_REVERSE: dict[str, int] = {
     v: k for k, v in COMPRESSION_METHODS.items()
+}
+
+RAR5_COMPRESSION_METHODS: dict[int, str] = {
+    0: "Store",
+    1: "Fastest",
+    2: "Fast",
+    3: "Normal",
+    4: "Good",
+    5: "Best",
+}
+RAR5_COMPRESSION_METHODS_REVERSE: dict[str, int] = {
+    v: k for k, v in RAR5_COMPRESSION_METHODS.items()
+}
+
+RAR5_HOST_OS_TYPES: dict[int, str] = {
+    0: "Windows",
+    1: "Unix",
 }

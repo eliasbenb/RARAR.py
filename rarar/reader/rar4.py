@@ -1,173 +1,38 @@
 import io
 import logging
-import pathlib
 import struct
-from typing import BinaryIO, Generator
-from urllib.parse import urlsplit
+from typing import Generator
 
-import requests
-
-from .const import (
+from ..const import (
     COMPRESSION_METHODS,
     COMPRESSION_METHODS_REVERSE,
-    DEFAULT_CHUNK_SIZE,
     FLAG_DIRECTORY,
     FLAG_HAS_DATA,
     FLAG_HAS_HIGH_SIZE,
     FLAG_HAS_UNICODE_NAME,
     MAX_SEARCH_SIZE,
-    RAR_BLOCK_END,
-    RAR_BLOCK_FILE,
-    RAR_BLOCK_HEADER,
-    RAR_MARKER,
+    RAR4_BLOCK_END,
+    RAR4_BLOCK_FILE,
+    RAR4_BLOCK_HEADER,
+    RAR4_MARKER,
 )
-from .exceptions import (
+from ..exceptions import (
     CompressionNotSupportedError,
     DirectoryDownloadNotSupportedError,
     InvalidRarFormatError,
-    NetworkError,
-    RangeRequestsNotSupportedError,
     RarMarkerNotFoundError,
-    UnknownSourceTypeError,
 )
-from .models import RarFile
+from ..models import RarFile
+from .base import RarReaderBase
 
 logger = logging.getLogger("rarar")
 
 
-class HttpFile:
-    def __init__(self, url: str, session=None):
-        self.url = url
-        self.session = session or requests.Session()
-        self.position = 0
-        self.total_downloaded = 0
-
-    def seek(self, position: int) -> int:
-        """Change the current position in the file.
-
-        Args:
-            position (int): The position to seek to
-
-        Returns:
-            int: The new position after seeking
-        """
-        self.position = position
-        return self.position
-
-    def read(self, size: int | None = None) -> bytes:
-        """Read bytes from the current position.
-
-        Args:
-            size (int | None): Number of bytes to read
-
-        Returns:
-            bytes: The requested bytes
-
-        Raises:
-            NetworkError: If the HTTP request fails
-            RangeRequestsNotSupportedError: If the server doesn't support range requests
-        """
-        if size is None or size <= 0:
-            return b""
-
-        end = self.position + size - 1
-        headers = {"Range": f"bytes={self.position}-{end}"}
-
-        logger.debug(f"Requesting bytes {self.position}-{end} ({size} bytes)")
-
-        try:
-            response = self.session.get(self.url, headers=headers, stream=True)
-
-            # Check if range requests are supported
-            if response.status_code == 200 and "Content-Range" not in response.headers:
-                raise RangeRequestsNotSupportedError(
-                    "The server does not support HTTP range requests"
-                )
-
-            if response.status_code not in (200, 206):
-                raise NetworkError(
-                    f"Failed to read bytes from URL: {response.status_code}"
-                )
-
-            content = response.content
-            self.total_downloaded += len(content)
-            self.position += len(content)
-
-            logger.debug(f"Total downloaded so far: {self.total_downloaded} bytes")
-
-            if len(content) != size and response.status_code == 206:
-                logger.warning(f"Expected {size} bytes but got {len(content)} bytes")
-
-            return content
-
-        except requests.RequestException:
-            raise NetworkError(f"Request failed for URL: {self.url}")
-
-
-class RarReader:
-    def __init__(
-        self,
-        source: str | BinaryIO,
-        chunk_size: int = DEFAULT_CHUNK_SIZE,
-        session: requests.Session | None = None,
-    ) -> None:
-        """Initialize the RAR reader with a source.
-
-        Args:
-            source (str | BinaryIo): Either a file-like object with seek and read methods, a URL, or a local file path
-            chunk_size (int): Size of chunks to read when searching
-            session (requests.Session | None): Session to use for HTTP requests if source is a URL
-        """
-        if isinstance(source, BinaryIO):
-            self.file_obj = source
-        elif self._is_url(source):
-            self.file_obj = HttpFile(source, session)
-        elif pathlib.Path(source).is_file():
-            self.file_obj = open(source, "rb")
-        else:
-            raise UnknownSourceTypeError(f"Unknown source type: {type(source)}")
-
-        self.chunk_size = chunk_size
-        self.total_read = 0
-
-    @staticmethod
-    def _is_url(source: str) -> bool:
-        """Check if the source is a URL.
-
-        Args:
-            source (str): The source to check
-
-        Returns:
-            bool: True if the source is a URL, False otherwise
-        """
-        try:
-            result = urlsplit(source)
-            return bool(result.scheme and result.netloc)
-        except ValueError:
-            return False
-
-    def read_bytes(self, start: int, length: int) -> bytes:
-        """Read a range of bytes from the file-like object.
-
-        Args:
-            start (int): Starting byte position
-            length (int): Number of bytes to read
-
-        Returns:
-            bytes: The requested bytes
-        """
-        if length <= 0:
-            return b""
-
-        self.file_obj.seek(start)
-        data = self.file_obj.read(length)
-        self.total_read += len(data)
-        logger.debug(f"Read {len(data)} bytes from position {start}")
-
-        return data
+class Rar4Reader(RarReaderBase):
+    """Reader for RAR 4.x format archives."""
 
     def _find_rar_marker(self) -> int:
-        """Find the RAR marker in the file using small chunk requests.
+        """Find the RAR4 marker in the file using small chunk requests.
 
         Returns:
             int: Position of the RAR marker in the file
@@ -178,7 +43,7 @@ class RarReader:
         position = 0
         max_search = MAX_SEARCH_SIZE
 
-        logger.debug(f"Searching for RAR marker in first {max_search} bytes")
+        logger.debug(f"Searching for RAR4 marker in first {max_search} bytes")
         while position < max_search:
             try:
                 chunk = self.read_bytes(
@@ -187,26 +52,26 @@ class RarReader:
                 if not chunk:
                     break
 
-                marker_pos = chunk.find(RAR_MARKER)
+                marker_pos = chunk.find(RAR4_MARKER)
                 if marker_pos != -1:
                     logger.debug(
-                        f"RAR marker found at position {position + marker_pos}"
+                        f"RAR4 marker found at position {position + marker_pos}"
                     )
                     return position + marker_pos
 
                 # Move forward by chunk size minus the marker length to ensure we don't miss it
                 # if it spans two chunks
-                position += max(1, len(chunk) - len(RAR_MARKER) + 1)
+                position += max(1, len(chunk) - len(RAR4_MARKER) + 1)
 
             except Exception:
-                logger.error("Error while searching for RAR marker", exc_info=True)
+                logger.error("Error while searching for RAR4 marker", exc_info=True)
                 raise
 
-        logger.error("RAR marker not found within search limit")
-        raise RarMarkerNotFoundError("RAR marker not found within search limit")
+        logger.error("RAR4 marker not found within search limit")
+        raise RarMarkerNotFoundError("RAR4 marker not found within search limit")
 
     def _parse_file_header(self, position: int) -> tuple[RarFile | None, int]:
-        """Parse a file header block and return the file info and next position.
+        """Parse a RAR4 file header block and return the file info and next position.
 
         Args:
             position (int): Starting position of the file header
@@ -216,7 +81,7 @@ class RarReader:
         """
         header_offset = position
         head_size = 7  # Default size for header
-        logger.debug(f"Parsing file header at position {position}")
+        logger.debug(f"Parsing RAR4 file header at position {position}")
 
         # TODO: OS-independent path parsing
         try:
@@ -228,7 +93,7 @@ class RarReader:
             head_size = struct.unpack("<H", header_data[5:7])[0]
 
             # If not a file block, skip it
-            if head_type != RAR_BLOCK_FILE:
+            if head_type != RAR4_BLOCK_FILE:
                 logger.debug(f"Not a file block (type: {head_type}), skipping")
                 return None, position + head_size
 
@@ -290,7 +155,6 @@ class RarReader:
             else:
                 file_name = file_name_data.decode("ascii", errors="replace")
 
-            # Check if the entry is a directory
             is_directory = (head_flags & FLAG_DIRECTORY) == FLAG_DIRECTORY
             logger.debug(f"{'Directory' if is_directory else 'File'}: {file_name}")
 
@@ -328,7 +192,7 @@ class RarReader:
             )
 
     def iter_files(self) -> Generator[RarFile, None, None]:
-        """Iterate through all files in the RAR archive.
+        """Iterate through all files in the RAR4 archive.
 
         Yields:
             RarFile: RarFile objects in the archive one by one
@@ -338,19 +202,19 @@ class RarReader:
             InvalidRarFormatError: If the archive format is invalid
             NetworkError: If there's a network-related error
         """
-        logger.debug("Finding RAR marker...")
+        logger.debug("Finding RAR4 marker...")
         pos = self._find_rar_marker()
-        logger.debug(f"RAR marker found at position {pos}")
-        pos += len(RAR_MARKER)  # Skip marker block
+        logger.debug(f"RAR4 marker found at position {pos}")
+        pos += len(RAR4_MARKER)  # Skip marker block
 
         logger.debug("Reading archive header...")
         header_data = self.read_bytes(pos, 7)
         head_type = header_data[2]
         head_size = struct.unpack("<H", header_data[5:7])[0]
 
-        if head_type != RAR_BLOCK_HEADER:
-            logger.error("Invalid RAR format - archive header not found")
-            raise InvalidRarFormatError("Invalid RAR format: archive header not found")
+        if head_type != RAR4_BLOCK_HEADER:
+            logger.error("Invalid RAR4 format - archive header not found")
+            raise InvalidRarFormatError("Invalid RAR4 format: archive header not found")
 
         pos += head_size  # Skip archive header
         logger.debug(f"Archive header processed, moving to position {pos}")
@@ -371,12 +235,12 @@ class RarReader:
                 head_size = struct.unpack("<H", header_data[5:7])[0]
 
                 # Check if we've reached the end of archive marker
-                if head_type == RAR_BLOCK_END:
+                if head_type == RAR4_BLOCK_END:
                     logger.debug("End of archive marker found")
                     break
 
                 # Check if we have a file block
-                if head_type == RAR_BLOCK_FILE:
+                if head_type == RAR4_BLOCK_FILE:
                     logger.debug(f"Found file entry at position {pos}")
                     file_info, pos = self._parse_file_header(pos)
                     if file_info:
@@ -409,14 +273,6 @@ class RarReader:
             f"Finished processing. Found {file_count} files. "
             f"Total bytes read: {self.total_read}"
         )
-
-    def list_files(self) -> list[RarFile]:
-        """List all files in the RAR archive.
-
-        Returns:
-            list[RarFile]: List of RarFile objects in the archive
-        """
-        return list(self.iter_files())
 
     def read_file(self, file_info: RarFile) -> bytes:
         """Returns the raw file data for a given RarFile object.
@@ -452,28 +308,3 @@ class RarReader:
         )
         data = self.read_bytes(file_info.data_offset, file_info.compressed_size)
         return data
-
-    def download_file(self, file_info: RarFile, output_path: str | None = None) -> bool:
-        """Downloads a file from the RAR archive.
-
-        Only supports non-compressed files (method 0x30 "Store").
-
-        Args:
-            file_info (RarFile): RarFile object to download
-            output_path (str | None): Path to save the downloaded file. If None, uses the file name from the archive.
-
-        Returns:
-            bool: True if the file was downloaded successfully, False otherwise
-        """
-        if not output_path:
-            output_path = file_info.name
-
-        try:
-            data = self.read_file(file_info)
-            with open(output_path, "wb") as f:
-                f.write(data)
-            logger.info(f"File downloaded successfully: {output_path}")
-            return True
-        except Exception:
-            logger.error(f"Error downloading file: {file_info.name}", exc_info=True)
-            return False

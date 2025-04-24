@@ -22,6 +22,12 @@ class InvalidRarFormatError(RaRarError):
     pass
 
 
+class UnsupportedRarVersionError(RaRarError):
+    """Exception raised when the RAR version is not supported."""
+
+    pass
+
+
 class NetworkError(RaRarError):
     """Exception raised when there's an issue with network requests."""
 
@@ -48,5 +54,11 @@ class CompressionNotSupportedError(RaRarError):
 
 class DirectoryDownloadNotSupportedError(RaRarError):
     """Exception raised when trying to download a directory from a remote source."""
+
+    pass
+
+
+class NotImplementedError(RaRarError):
+    """Exception raised when a feature is not yet implemented."""
 
     pass

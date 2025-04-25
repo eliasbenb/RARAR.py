@@ -130,30 +130,13 @@ The RAR archive format was developed by Eugene Roshal and is maintained by win.r
 	\item End of archive block
 \end{enumerate}
 
-The RAR format uses a consistent block structure throughout the archive. Following the basic layout outlined in Table~\ref{tab:block_header}, each block begins with a header that contains information about the block type, size, and various flags.
+The RAR format uses a consistent block structure throughout the archive. Following the basic layout outlined in Figure~\ref{fig:block_header}, each block begins with a header that contains information about the block type, size, and various flags.
 
-\begin{table}[htbp]
-	\caption{RAR Block Header Structure}
-	\begin{center}
-		\footnotesize
-		\begin{tabular}{|c|c|l|}
-			\hline
-			\textbf{Offset} & \textbf{Size} & \textbf{Description} \\
-			\hline
-			0x00            & 2 bytes       & CRC of header data   \\
-			\hline
-			0x02            & 1 byte        & Block type           \\
-			\hline
-			0x03            & 2 bytes       & Block flags          \\
-			\hline
-			0x05            & 2 bytes       & Block size           \\
-			\hline
-			0x07            & Variable      & Block-specific data  \\
-			\hline
-		\end{tabular}
-		\label{tab:block_header}
-	\end{center}
-\end{table}
+\begin{figure}[htbp]
+	\centerline{\includegraphics[width=\columnwidth]{fig/rar-block-header-diagram.png}}
+	\caption{ERAR Block Header Structure}
+	\label{fig:block_header}
+\end{figure}
 
 \subsubsection{File Header Structure}
 The file header is particularly important for random access as it contains information on where to locate and extract specific files. The file header extends the basic block structure with additional fields, as shown in Table~\ref{tab:file_header}.
@@ -292,8 +275,7 @@ Optional components like high pack/unpack sizes are only read when the header fl
 	\If{$headFlags$ \& $FLAG\_HAS\_DATA$}{
 		$nextPos \gets nextPos + packSize$\;
 	}
-	$fileInfo \gets CreateFileInfo(fileName, unpSize, packSize,$\;
-	$\qquad\qquad\qquad\qquad method, fileCRC, isDirectory, dataOffset, nextPos)$\;
+	$fileInfo \gets CreateFileInfo(fileName, unpSize, ...)$\;
 	\Return $fileInfo, nextPos$\;
 \end{algorithm}
 

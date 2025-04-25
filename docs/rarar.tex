@@ -44,7 +44,7 @@
 \maketitle
 
 \begin{abstract}
-	This paper presents RARAR (Random Access RAR)\footnote{Available at: https://github.com/eliasbenb/RARAR.py}, a Python library that enables efficient access to RAR archives without requiring complete downloads. Our implementation supports multiple source types (HTTP URLs, local files, and file-like objects) while achieving significant bandwidth reduction for remote archive access. We discuss the technical challenges of parsing RAR formats, detail our architecture, and demonstrate bandwidth savings exceeding 99\% compared to traditional approaches. While currently limited to uncompressed files, our framework provides a foundation for future development in random-access archive handling.
+	This paper presents RARAR (Random Access RAR)\footnote{Available at: https://github.com/eliasbenb/RARAR.py}, a Python library that enables efficient access to RAR archives without requiring complete downloads. Our implementation supports multiple source types (HTTP URLs, local files, and file-like objects) while achieving significant bandwidth reduction for remote archive access. We discuss the technical challenges of parsing RAR formats, detail our architecture, and demonstrate bandwidth savings exceeding 99\% for file listing operations compared to traditional approaches.. While currently limited to uncompressed files, our framework provides a foundation for future development in random-access archive handling.
 \end{abstract}
 
 \begin{IEEEkeywords}
@@ -285,7 +285,7 @@ We evaluated RARAR using diverse archives under controlled conditions:
 \end{itemize}
 
 \subsection{Bandwidth Usage}
-RARAR demonstrates exceptional bandwidth efficiency. Table~\ref{tab:bandwidth_comparison} shows bandwidth savings across various archive sizes.
+RARAR demonstrates exceptional bandwidth efficiency during archive listing operations. Table~\ref{tab:bandwidth_comparison} shows bandwidth usage for listing files across various archive sizes, where only file headers are retrieved rather than full archive contents.
 
 The key finding is that bandwidth usage remains constant regardless of archive size, scaling linearly with file count at approximately 32KB per file due to our header-only parsing approach.
 
@@ -297,8 +297,10 @@ If we denote the archive size as $S$ and the number of files as $N$, the bandwid
 
 This formula accurately models our experimental results. For instance, with a 50GB archive containing 250 files, RARAR transferred only 7.82MB of data, representing a 99.980\% reduction from conventional download methods. This measured result aligns with the formula's prediction of 99.984\% savings. Similarly, the worst-performing case (250 files in a 10MB archive), also accurately aligns with the formula's prediction of 21.875\% savings.
 
+These bandwidth savings apply specifically to the file listing operation. File extraction requires additional bandwidth proportional to the target file size, though RARAR still provides advantages by transferring only the requested file data rather than the entire archive. For example, extracting a 10MB file from a 1GB archive requires only 10MB of transfer (plus the minimal header overhead outlined in Table~\ref{tab:bandwidth_comparison}) versus 1GB with traditional methods. In edge cases where users extract all files or the entire archive consists of a single file, RARAR's bandwidth consumption exactly matches that of traditional methods.
+
 \begin{table}[htbp]
-	\caption{Bandwidth Comparison: RARAR vs. Traditional Methods}
+	\caption{Bandwidth Comparison for File Listing: RARAR vs. Traditional Methods}
 	\begin{center}
 		\footnotesize
 		\begin{tabular}{|c|c|c|c|}
@@ -341,11 +343,12 @@ This formula accurately models our experimental results. For instance, with a 50
 \end{table}
 
 \subsection{Operation Latency}
-Operation latency depends primarily on network conditions due to multiple small HTTP requests. Table~\ref{tab:network_impact} shows performance under various network latencies. The results demonstrate that archive listing time scales linearly with both network latency and file count, following the relationship:
+Our experiments focused on the latency of archive listing operations, which depend primarily on network conditions due to multiple small HTTP requests for reading headers. Table~\ref{tab:network_impact} shows listing performance under various network latencies.
 
 \begin{equation}
 	T = n \times (L + P)
 \end{equation}
+\label{eq:latency}
 
 Where $T$ is total time, $n$ is the number of files, $L$ is network latency per request, and $P$ is processing time per header (both by the client and server). At 1ms latency, listing time increases from 46ms for 10 files to 411ms for 250 files (approximately 40ms per additional 10 files). At 100ms latency, the same operation ranges from 2,374ms to 33,961ms, showing a much steeper increase (approximately 1,317ms per additional 10 files). This linear scaling confirms that archive listing time is dominated by network round-trip times rather than processing overhead.
 
@@ -357,7 +360,7 @@ Given the impact latency has on operation time, RARAR implements several optimiz
 \end{itemize}
 
 \begin{table}[htbp]
-	\caption{Network Condition Impact on RARAR Performance}
+	\caption{Network Condition Impact on RARAR File Listing Performance}
 	\begin{center}
 		\footnotesize
 		\begin{tabular}{|c|c|c|}
@@ -389,7 +392,9 @@ Given the impact latency has on operation time, RARAR implements several optimiz
 
 The other critical operation for RARAR is file extraction. For example, to retrieve a 5 MB file at the end of a 500 MB archive over a 20 Mbit/s connection with 50ms round-trip time, a full download would take approximately $\frac{500 \text{ MB} \times 8 \text{ Mbit/MB}}{20 \text{ Mbit/s}} = 200 \text{ seconds}$. In contrast, RARAR would require several range requests to parse headers (1-2 requests at 50ms each, totaling 50-100ms) followed by a single request to exclusively download the 5 MB file ($\frac{5 \text{ MB} \times 8 \text{ Mbit/MB}}{20 \text{ Mbit/s}} = 2 \text{ seconds}$). The total extraction time would be approximately 2.05-2.10 seconds—a 99\% reduction in time compared to the traditional approach.
 
-It it also worth noting that the physical position of a file within an archive significantly impacts extraction performance. Files at the beginning of an archive require parsing only the initial headers, while files at the end necessitate sequential parsing of all preceding headers. This positional dependency introduces variable latency, with worst-case scenarios occurring when extracting files located near the archive's end. Our prior example assumed worst case latency.
+As with the bandwidth experiment, these latency measurements reflect file listing operations only, where RARAR must parse headers sequentially. File extraction latency includes this initial listing overhead plus the time to transfer the target file data. For example, extracting a 5MB file from a 500MB archive at the end position requires: (1) header parsing time (shown in Table~\ref{tab:network_impact}), and (2) transfer time for the 5MB file, which is dependent on network bandwidth.
+
+It it also worth noting that the physical position of target files for extraction within an archive significantly impacts completion time. Files at the beginning of an archive require parsing only the initial headers, while files at the end require sequential parsing of all preceding headers. This positional dependency introduces variable latency, with worst-case scenarios occurring when extracting files located near the archive's end. Our prior example assumed this worst-case scenario.
 
 \subsection{Scalability Analysis}
 Our analysis demonstrates excellent scalability characteristics. Bandwidth usage remains constant regardless of archive size (Table~\ref{tab:bandwidth_comparison}), while operation latency scales linearly with file count (Table~\ref{tab:network_impact}). This enables efficient handling of arbitrarily large archives containing numerous files.
@@ -448,7 +453,7 @@ Backup systems could implement RARAR to enable granular file restoration. Instea
 \section{Conclusion}
 RARAR represents a novel approach to working with RAR archives. By combining careful format parsing with HTTP Range requests, our solution enables efficient file listing and extraction without full archive downloads.
 
-The demonstrated bandwidth savings when accessing a 50GB archive while transferring only 0.32MB highlight significant efficiency improvements. Although currently limited to uncompressed files, RARAR establishes a foundation for comprehensive random-access archive handling.
+The demonstrated bandwidth savings when listing contents of a 50GB archive while transferring only 0.32MB highlight significant efficiency improvements. These savings extend to file extraction, where only the required file data needs to be transferred.
 
 This work provides both practical tools for developers and demonstrates techniques applicable to other archive formats, advancing the state of remote file access optimization.
 

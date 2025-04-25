@@ -87,12 +87,13 @@ def list_rar_contents(source: str, json_output: bool = False) -> list[RarFile]:
         return []
 
 
-def extract_file(source: str, file_index: int) -> bool:
+def extract_file(source: str, file_index: int, output_path: str | None = None) -> bool:
     """Extract a specific file from the RAR archive.
 
     Args:
         source (str): URL or path to the RAR archive
         file_index (int): 1-based index of the file to extract
+        output_path (str | None): Path to save the extracted file. If None, uses the file name from the archive.
 
     Returns:
         bool: True if successful, False otherwise
@@ -117,7 +118,7 @@ def extract_file(source: str, file_index: int) -> bool:
             logger.error(f"Invalid index. Please choose between 1 and {i}")
             return False
 
-        reader.extract_file(file_to_extract)
+        reader.extract_file(file_to_extract, output_path)
         return True
     except RaRarError as e:
         logger.error(e)
@@ -147,6 +148,9 @@ def main():
     extract_parser.add_argument(
         "file_index", type=int, help="1-based index of the file to extract"
     )
+    extract_parser.add_argument(
+        "-o", "--output", type=str, help="Path to save the extracted file"
+    )
 
     args = parser.parse_args()
 
@@ -163,7 +167,7 @@ def main():
             sys.exit(1)
 
     elif args.command == "extract":
-        success = extract_file(args.source, args.file_index)
+        success = extract_file(args.source, args.file_index, args.output)
         if not success:
             sys.exit(1)
 

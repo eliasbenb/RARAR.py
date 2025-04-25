@@ -2,6 +2,7 @@ import io
 import logging
 import pathlib
 from abc import ABC, abstractmethod
+from pathlib import Path
 from typing import BinaryIO, Generator
 from urllib.parse import urlsplit
 
@@ -146,27 +147,32 @@ class RarReaderBase(ABC):
         """
         return list(self.iter_files())
 
-    def download_file(self, file_info: RarFile, output_path: str | None = None) -> bool:
+    def download_file(
+        self, file_info: RarFile, output_path: str | Path | None = None
+    ) -> bool:
         """Downloads a file from the RAR archive.
 
         Only supports non-compressed files (method 0x30 "Store").
 
         Args:
             file_info (RarFile): RarFile object to download
-            output_path (str | None): Path to save the downloaded file. If None, uses the file name from the archive.
+            output_path (str | Path | None): Path to save the downloaded file. If None, uses the file name from the archive.
 
         Returns:
             bool: True if the file was downloaded successfully, False otherwise
         """
         if not output_path:
-            output_path = file_info.name
+            output_path = file_info.path
+        else:
+            output_path = Path(output_path)
 
         try:
+            output_path.parent.mkdir(parents=True, exist_ok=True)
             data = self.read_file(file_info)
-            with open(output_path, "wb") as f:
+            with output_path.open("wb") as f:
                 f.write(data)
             logger.info(f"File downloaded successfully: {output_path}")
             return True
         except Exception:
-            logger.error(f"Error downloading file: {file_info.name}", exc_info=True)
+            logger.error(f"Error downloading file: {file_info.path}", exc_info=True)
             return False

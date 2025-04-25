@@ -46,7 +46,7 @@ def list_rar_contents(source: str, json_output: bool = False) -> list[RarFile]:
 
             for i, file in enumerate(reader.iter_files(), 1):
                 files.append(file)
-                logger.info(f"  {i}. {file.name} ({file.size} bytes)")
+                logger.info(f"  {i}. {file.path} ({file.size} bytes)")
 
             logger.info(f"Found {len(files)} files/directories:")
         else:

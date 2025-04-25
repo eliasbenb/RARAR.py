@@ -1,6 +1,7 @@
 import io
 import logging
 import struct
+from pathlib import Path
 from typing import Generator
 
 from ..const import (
@@ -166,7 +167,7 @@ class Rar3Reader(RarReaderBase):
                 next_pos += full_pack_size
 
             file_info = RarFile(
-                name=file_name,
+                path=Path(file_name),
                 size=full_unp_size,
                 compressed_size=full_pack_size,
                 method=method,
@@ -244,7 +245,7 @@ class Rar3Reader(RarReaderBase):
                     if file_info:
                         file_count += 1
                         logger.debug(
-                            f"Processed file {file_count}: {file_info.name} "
+                            f"Processed file {file_count}: {file_info.path} "
                             f"({file_info.size} bytes, {file_info.compressed_size} compressed)"
                         )
                         yield file_info
@@ -290,7 +291,7 @@ class Rar3Reader(RarReaderBase):
         """
         if file_info.is_directory:
             raise DirectoryDownloadNotSupportedError(
-                f"Directory downloads are not supported: {file_info.name}"
+                f"Directory downloads are not supported: {file_info.path}"
             )
 
         if file_info.method != COMPRESSION_METHODS_REVERSE["Store"]:
@@ -301,7 +302,7 @@ class Rar3Reader(RarReaderBase):
             )
 
         logger.info(
-            f"Reading file: {file_info.name} ({file_info.data_offset}-{file_info.next_offset - 1}) "
+            f"Reading file: {file_info.path} ({file_info.data_offset}-{file_info.next_offset - 1}) "
             f"({file_info.compressed_size} bytes)"
         )
         data = self.read_bytes(file_info.data_offset, file_info.compressed_size)

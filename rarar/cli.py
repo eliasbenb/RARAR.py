@@ -22,6 +22,7 @@ def setup_logging(debug: bool = False) -> None:
     logger.setLevel(level)
 
     if debug:
+        logging.getLogger("httpx").setLevel(logging.INFO)
         logger.debug("Debug logging enabled")
 
 

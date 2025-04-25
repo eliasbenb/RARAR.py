@@ -62,7 +62,9 @@ Random access to archive contents would provide substantial benefits across nume
 	\item Enabling search engine indexing of archive contents
 \end{itemize}
 
-RARAR addresses this limitation by providing a Python package that implements random access to RAR archives. While supporting local files, in-memory buffers, and other file-like objects, the library emphasizes HTTP sources due to their significant practical benefits. Our implementation leverages HTTP Range requests to selectively retrieve file segments, dramatically reducing bandwidth requirements and improving access efficiency.
+Unlike formats like ZIP that provide a central directory of contents at the file's end \cite{b1}, the RAR format poses additional challenges. RAR archives do not contain a single index of all files; instead, file metadata (headers) are interspersed throughout the archive \cite{b2}. This makes remote selective access non-trivial, as the archive must be parsed sequentially to locate desired files.
+
+RARAR addresses this limitation by providing a Python package that implements random access to RAR archives. While supporting local files, in-memory buffers, and other file-like objects, the library emphasizes HTTP sources due to their significant practical benefits. Our implementation leverages HTTP Range requests per RFC 7233 \cite{b3} to selectively retrieve file segments, dramatically reducing bandwidth requirements and improving access efficiency.
 
 The RARAR library is available as open-source software on GitHub: \url{https://github.com/eliasbenb/RARAR.py}. This paper presents the design, implementation, and performance characteristics of the library.
 
@@ -83,6 +85,8 @@ This approach suffers from several critical issues:
 	\item Environmental impact due to unnecessary data transfer
 \end{itemize}
 
+For instance, Damien Mannion illustrates in a blog post the challenges of random access with ZIP files. He describes a scenario where downloading an entire 250GB archive, just to extract a few specific files, would take approximately 60 minutes \cite{b1}. This scenario motivates techniques for random access to archives, so that specific files can be extracted without transferring the entire archive.
+
 \subsection{Contribution}
 This paper makes the following contributions:
 \begin{itemize}
@@ -93,42 +97,33 @@ This paper makes the following contributions:
 \end{itemize}
 
 \section{Related Work}
-\subsection{Existing RAR Handling Libraries}
-Several libraries provide RAR archive handling capabilities, though none are designed for random access:
-
-\begin{itemize}
-	\item \textbf{UnRAR}: The official C library from RARLAB provides extraction functionality but requires local access to complete archives.
-
-	\item \textbf{Python-rarfile}: A Python module wrapping the UnRAR library or command-line tools. While feature-complete, it requires full archive availability before extraction.
-\end{itemize}
-
 \subsection{Random Access in Other Archive Formats}
-Research on random access has primarily focused on formats other than RAR:
+Random access in RAR archives is a novel and unexplored area. Existing research on random access has primarily focused on formats other than RAR, such as:
 
 \begin{itemize}
-	\item \textbf{ZIP}: The ZIP format inherently supports efficient random access through its central directory structure located at the file's end. Libraries like Python's \texttt{zipfile} can parse this directory without downloading the entire archive, though full file access remains necessary for extraction.
+	\item \textbf{ZIP}: The ZIP format inherently supports efficient random access through its central directory structure located at the file's end. Tools and scripts have been devised to exploit this for partial download: one can fetch the central directory via a byte range request, then know the offset of the desired file and fetch only that part \cite{b1, b4}.
 
-	\item \textbf{LZOP}: The LZOP format enables random access to compressed data blocks, as demonstrated by the lzopfs project\cite{b5}, allowing efficient extraction of specific files. However, LZOP lacks the widespread adoption of RAR or ZIP.
+	\item \textbf{LZOP}: The LZOP format enables random access to compressed data blocks, as demonstrated by the lzopfs project \cite{b5}, allowing efficient extraction of specific files.
 \end{itemize}
 
 \subsection{HTTP Range Requests in Content Delivery}
 HTTP Range requests have proven valuable in various content delivery scenarios such as video streaming and resumable downloads. These applications demonstrate how requesting specific byte ranges optimizes data transfer and reduces bandwidth waste.
 
-Our work extends these techniques to RAR archive access. To our knowledge, RARAR represents the first implementation of HTTP-based random access for RAR archives.
+Other systems like httpfs+ (2022) essentially treat a remote HTTP directory as a filesystem by using partial fetches to simulate file reads \cite{b6}. Our work extends these techniques to RAR archive access. To our knowledge, RARAR represents the first implementation of HTTP-based random access for RAR archives.
 
 \section{Technical Background}
 
 \subsection{RAR File Format}
-The RAR archive format, developed by Eugene Roshal and maintained by win.rar GmbH, uses a proprietary structure that has been partially reverse-engineered by the community. The format consists of sequential blocks:
+The RAR archive format, developed by Eugene Roshal and maintained by win.rar GmbH, uses a proprietary structure that has been partially reverse-engineered by the community. RAR is essentially a linear sequence of blocks, each with a header and associated data \cite{b2, b7, b8}.
 
 \begin{enumerate}
 	\item Marker block (RAR signature)
-	\item Archive header block
-	\item File header blocks (one per file)
+	\item Archive header block (MAIN\_HEAD)
+	\item File header blocks (FILE\_HEAD, one per file)
 	\item End of archive block
 \end{enumerate}
 
-Each block follows a consistent structure (Figure~\ref{fig:block_header}) with a header containing block type, size, and various flags.
+In other words, a typical "RAR file has a MAIN\_HEAD structure followed by multiple FILE\_HEAD structures" \cite{b8}.
 
 \begin{figure}[htbp]
 	\centerline{\includegraphics[width=\columnwidth]{fig/rar-block-header-diagram.png}}
@@ -174,6 +169,11 @@ File headers are crucial for random access as they contain location and extracti
 	\end{center}
 \end{table}
 
+\subsection{Random Access Challenges}
+Given this structure, random access in RAR is challenging. Without a central index like in ZIP archives, the only way to discover files and their locations is to parse the headers in sequence. When streaming a RAR archive you initially won't have any information about any of the files-no names, sizes, or file counts/locations until you read through it.
+
+Moreover, RAR supports an optional solid archive mode, where multiple files are compressed together as one continuous data stream. In a solid archive, even if one knows the byte range of a file's data, that file cannot be independently decompressed without first processing the preceding data in the solid block \cite{b2,b7}.
+
 \subsection{HTTP Range Requests}
 HTTP Range requests enable clients to request specific portions of resources, a capability essential for our implementation when working with remote archives. The protocol, defined in RFC 7233\cite{b3}, uses the Range header to specify byte ranges and responds with 206 Partial Content status.
 
@@ -214,7 +214,7 @@ Without official documentation, our understanding derives from:
 \section{Design and Implementation}
 
 \subsection{Architecture Overview}
-RARAR is designed around the principle of minimal data transfer principle, downloading only the bytes necessary to accomplish specific tasks. The library consists of three main components:
+RARAR is designed around the principle of minimal data transfer, downloading only the bytes necessary to accomplish the required task. The library consists of three main components:
 
 \begin{enumerate}
 	\item \textbf{Source Handlers}: Abstractions for file-like objects, including HTTP sources, local files, and memory buffers
@@ -223,7 +223,9 @@ RARAR is designed around the principle of minimal data transfer principle, downl
 \end{enumerate}
 
 \subsubsection{Source Handler Abstraction}
-Our adapter pattern enables archive access regardless of source type, maintaining separation between parsing logic and data access methods. Compatible sources must implement standard Python \texttt{io} module interfaces.
+Our adapter pattern enables archive access regardless of source type, maintaining separation between parsing logic and data access methods. Compatible sources must implement standard Python \texttt{io} module interfaces \cite{b9}
+
+We implemented a custom HttpFile class that mimics Python's built-in file object, but under the hood it performs HTTP range requests to fulfill read and seek operations.
 
 Required methods include:
 \begin{itemize}
@@ -268,6 +270,8 @@ Algorithm~\ref{alg:parse_file_header} demonstrates our efficient header parsing 
 	\Return $fileInfo, nextPos$\;
 \end{algorithm}
 
+One optimization in our implementation is to minimize the number of HTTP requests during this scanning phase. Instead of fetching each header with a separate tiny request, RARAR reads in moderate-sized chunks (e.g. 256 KB) that likely contain multiple file headers at once.
+
 \section{Performance Evaluation}
 
 \subsection{Experimental Setup}
@@ -281,9 +285,17 @@ We evaluated RARAR using diverse archives under controlled conditions:
 \end{itemize}
 
 \subsection{Bandwidth Usage}
-RARAR demonstrates exceptional bandwidth efficiency. Table~\ref{tab:bandwidth_comparison} shows bandwidth savings across various archive sizes. The key finding is that bandwidth usage remains constant regardless of archive size, scaling linearly with file count at approximately 32KB per file due to our header-only parsing approach.
+RARAR demonstrates exceptional bandwidth efficiency. Table~\ref{tab:bandwidth_comparison} shows bandwidth savings across various archive sizes.
 
-For a 50GB archive with 250 files, RARAR required only 7.82MB of data transfer—a 99.98\% reduction compared to traditional methods.
+The key finding is that bandwidth usage remains constant regardless of archive size, scaling linearly with file count at approximately 32KB per file due to our header-only parsing approach.
+
+If we denote the archive size as $S$ and the number of files as $N$, the bandwidth savings can be approximated with:
+
+\begin{equation}
+	\text{Bandwidth Savings} \approxeq \frac{S - (N \times 32KB)}{S} \times 100\%
+\end{equation}
+
+This formula accurately models our experimental results. For instance, with a 50GB archive containing 250 files, RARAR transferred only 7.82MB of data, representing a 99.980\% reduction from conventional download methods. This measured result aligns with the formula's prediction of 99.984\% savings. Similarly, the worst-performing case (250 files in a 10MB archive), also accurately aligns with the formula's prediction of 21.875\% savings.
 
 \begin{table}[htbp]
 	\caption{Bandwidth Comparison: RARAR vs. Traditional Methods}
@@ -329,9 +341,15 @@ For a 50GB archive with 250 files, RARAR required only 7.82MB of data transfer�
 \end{table}
 
 \subsection{Operation Latency}
-Operation latency depends primarily on network conditions due to multiple small HTTP requests. Table~\ref{tab:network_impact} shows performance under various network latencies. Listing 250 files takes 411ms at 1ms latency but increases to 33,961ms at 100ms latency.
+Operation latency depends primarily on network conditions due to multiple small HTTP requests. Table~\ref{tab:network_impact} shows performance under various network latencies. The results demonstrate that archive listing time scales linearly with both network latency and file count, following the relationship:
 
-To mitigate latency impact, we implemented:
+\begin{equation}
+	T = n \times (L + P)
+\end{equation}
+
+Where $T$ is total time, $n$ is the number of files, $L$ is network latency per request, and $P$ is processing time per header (both by the client and server). At 1ms latency, listing time increases from 46ms for 10 files to 411ms for 250 files (approximately 40ms per additional 10 files). At 100ms latency, the same operation ranges from 2,374ms to 33,961ms, showing a much steeper increase (approximately 1,317ms per additional 10 files). This linear scaling confirms that archive listing time is dominated by network round-trip times rather than processing overhead.
+
+Given the impact latency has on operation time, RARAR implements several optimizations to reduce it:
 \begin{itemize}
 	\item Batch reading of adjacent headers
 	\item Predictive prefetching for likely-needed blocks
@@ -369,6 +387,10 @@ To mitigate latency impact, we implemented:
 	\end{center}
 \end{table}
 
+The other critical operation for RARAR is file extraction. For example, to retrieve a 5 MB file at the end of a 500 MB archive over a 20 Mbit/s connection with 50ms round-trip time, a full download would take approximately $\frac{500 \text{ MB} \times 8 \text{ Mbit/MB}}{20 \text{ Mbit/s}} = 200 \text{ seconds}$. In contrast, RARAR would require several range requests to parse headers (1-2 requests at 50ms each, totaling 50-100ms) followed by a single request to exclusively download the 5 MB file ($\frac{5 \text{ MB} \times 8 \text{ Mbit/MB}}{20 \text{ Mbit/s}} = 2 \text{ seconds}$). The total extraction time would be approximately 2.05-2.10 seconds—a 99\% reduction in time compared to the traditional approach.
+
+It it also worth noting that the physical position of a file within an archive significantly impacts extraction performance. Files at the beginning of an archive require parsing only the initial headers, while files at the end necessitate sequential parsing of all preceding headers. This positional dependency introduces variable latency, with worst-case scenarios occurring when extracting files located near the archive's end. Our prior example assumed worst case latency.
+
 \subsection{Scalability Analysis}
 Our analysis demonstrates excellent scalability characteristics. Bandwidth usage remains constant regardless of archive size (Table~\ref{tab:bandwidth_comparison}), while operation latency scales linearly with file count (Table~\ref{tab:network_impact}). This enables efficient handling of arbitrarily large archives containing numerous files.
 
@@ -403,13 +425,25 @@ A promising approach involves developing partial decompression strategies that i
 \subsubsection{RAR5 Support}
 Supporting RAR5 would extend versatility by accommodating the latest format version. Our extensible factory pattern facilitates adding new version handlers while maintaining compatibility with existing formats.
 
-\subsubsection{Server Integration}
-Integrating RARAR into web servers could enable efficient file serving through:
-\begin{itemize}
-	\item Server-side random access capabilities
-	\item Client-specific file range requests
-	\item On-the-fly decompression and extraction
-\end{itemize}
+\subsection{Applications and Use Cases}
+The random access capabilities introduced by RARAR enable numerous practical applications across diverse domains:
+
+\subsubsection{File Server Integration}
+The original inspiration for RARAR was to integrate on-the-fly RAR archive access into a WebDAV server that mirrors an external repository. This integration would allow users to access specific files within RAR archives without the user or the mirror server needing to download the entire file.
+
+\subsubsection{Cloud Storage Systems}
+Cloud storage providers could integrate RARAR to enhance user experience when accessing archived content. Instead of requiring users to download complete archives, providers could offer direct file previews and selective extraction from RAR archives.
+
+Google Drive already supports this feature for ZIP files, allowing users to preview and extract files without downloading the entire archive. RARAR could extend similar functionality to RAR archives.
+
+\subsubsection{Content Distribution Networks}
+CDNs could leverage RARAR to optimize delivery of archived content. Rather than storing and serving individual files, CDNs could maintain single compressed archives while allowing clients to request specific components. This approach reduces storage overhead while maintaining efficient content delivery, particularly beneficial for distributing large software packages, game assets, or multimedia collections.
+
+\subsubsection{Media Streaming Services}
+Streaming platforms could utilize RARAR to manage archived media content efficiently. Large collections of video or audio files could remain in compressed archives while allowing real-time extraction and streaming of specific content on demand, reducing storage costs.
+
+\subsubsection{Backup and Disaster Recovery}
+Backup systems could implement RARAR to enable granular file restoration. Instead of restoring complete archive volumes, administrators could selectively recover specific files or directories.
 
 \section{Conclusion}
 RARAR represents a novel approach to working with RAR archives. By combining careful format parsing with HTTP Range requests, our solution enables efficient file listing and extraction without full archive downloads.
@@ -419,11 +453,17 @@ The demonstrated bandwidth savings when accessing a 50GB archive while transferr
 This work provides both practical tools for developers and demonstrates techniques applicable to other archive formats, advancing the state of remote file access optimization.
 
 \begin{thebibliography}{00}
-	\bibitem{b1} E. Benbourenane, "RARAR.py: Random Access RAR," GitHub repository, Available: https://github.com/eliasbenb/RARAR.py, 2025.
-	\bibitem{b2} E. Roshal, "RAR archive file format," Technical Specification, RARLAB, 2019.
-	\bibitem{b3} R. Fielding et al., "Hypertext Transfer Protocol (HTTP/1.1): Range Requests," RFC 7233, Internet Engineering Task Force, June 2014.
-	\bibitem{b4} Python Software Foundation, "io — Core tools for working with streams," Python Documentation, version 3.13, 2024.
-	\bibitem{b5} D. Vasilevsky, "lzopfs: A FUSE filesystem for transparent random access to compressed LZOP archives," GitHub repository, Available: https://github.com/vasi/lzopfs, 2011.
+	\bibitem{b1} D. Mannion, "Extracting Files from a Remote Zip Archive," djmannion.net, 2022. [Online]. Available: \url{https://www.djmannion.net/partial_zip/index.html}
+	\bibitem{b2} "RAR Version 4.20 - Technical Information," rescene.wikidot.com, 2014. [Online]. Available: \url{http://rescene.wikidot.com/rar-420-technote}
+	\bibitem{b3} R. Fielding et al., "Hypertext Transfer Protocol (HTTP/1.1): Range Requests," RFC 7233, Internet Engineering Task Force, Jun. 2014.
+	\bibitem{b4} GDAL Contributors, "GDAL Virtual File Systems: /vsimem, /vsizip, /vsitar, /vsicurl," GDAL, 1998--2025. [Online]. Available: \url{https://gdal.org/en/stable/user/virtual_file_systems.html}
+	\bibitem{b5} D. Vasilevsky, "lzopfs: A FUSE Filesystem for Transparent Random Access to Compressed LZOP Archives," GitHub, 2011. [Online]. Available: \url{https://github.com/vasi/lzopfs}
+	\bibitem{b6} D. Guillen Fandos, "httpfs+: A FUSE Based Filesystem over HTTP," davidgf.net, 2022. [Online]. Available: \url{https://www.davidgf.net/2022/10/01/httpfs/index.html}
+	\bibitem{b7} E. Roshal, "RAR Archive File Format," Technical Specification, RARLAB, 2019.
+	\bibitem{b8} S. Jeff, "Documentation of the RAR Format," BitJS Documentation. [Online]. Available: \url{https://codedread.github.io/bitjs/docs/unrar.html}
+	\bibitem{b9} Python Software Foundation, "io --- Core Tools for Working with Streams," Python Documentation, version 3.13, 2024.
+	\bibitem{b10} M. Constantinescu, A. Rusu, and I. Bucur, "Random Extraction from Compressed Data: A Practical Study," IBM Research, 2013.
+	\bibitem{b11} E. Benbourenane, "RARAR.py: Random Access RAR," GitHub Repository, 2025. [Online]. Available: \url{https://github.com/eliasbenb/RARAR.py}
 \end{thebibliography}
 
 \end{document}

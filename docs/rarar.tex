@@ -175,7 +175,7 @@ File headers are crucial for random access as they contain location and extracti
 \end{table}
 
 \subsection{HTTP Range Requests}
-HTTP Range requests allow clients to request only a portion of a resource from a server. This capability is essential for our integration with remote files served through HTTP, as it enables requesting only the necessary parts of the RAR archive. The Range header in HTTP requests specifies which bytes of the resource to return, and servers respond with a 206 Partial Content status containing the desired file range.
+HTTP Range requests enable clients to request specific portions of resources, a capability essential for our implementation when working with remote archives. The protocol, defined in RFC 7233\cite{b3}, uses the Range header to specify byte ranges and responds with 206 Partial Content status.
 
 \subsubsection{Range Request Specification}
 The HTTP/1.1 protocol defines the Range header field in RFC 7233. A typical Range request header has the format:
@@ -193,55 +193,48 @@ Range: bytes=500-     // All bytes from position 500
 \end{lstlisting}
 
 \subsubsection{Server Support Considerations}
-Not all HTTP servers support Range requests. Our implementation detects whether a server supports this feature through a combination of:
-
+Range request support varies across servers. Our implementation detects support through:
 \begin{itemize}
-	\item Confirming a successful 206 or 200 response code when requesting a range.
-	\item Finding an \texttt{Accept-Ranges} header in the response.
-	\item Comparing the requested and returned content lengths.
+	\item Confirming 206 or 200 response codes for range requests
+	\item Checking for the \texttt{Accept-Ranges} header
+	\item Validating requested and returned content lengths
 \end{itemize}
 
 \subsubsection{RAR Format Variations}
-The RAR format has evolved through several versions (RAR 1.3, 2.0, 3.0, 4.0, and 5.0), each with subtle differences in header structures and compression algorithms. Our implementation focuses primarily on the most widely-used RAR 3.0 and 4.0 formats.
+RAR has evolved through versions 1.3, 2.0, 3.0, 4.0, and 5.0, each introducing changes to header structures and compression algorithms. Our implementation targets the widely-adopted RAR 3.0 and 4.0 formats.
 
 \subsubsection{Reverse Engineering Approach}
-Without official documentation, our understanding of the RAR format was derived from:
+Without official documentation, our understanding derives from:
 \begin{itemize}
-	\item Analysis of existing open-source implementations
+	\item Analysis of open-source implementations
 	\item Community-documented specifications
-	\item Testing against archive samples
+	\item Testing against sample archives
 \end{itemize}
 
 \section{Design and Implementation}
 
 \subsection{Architecture Overview}
-RARAR is designed around the principle of minimal data transfer, downloading only the bytes necessary to accomplish specific tasks. The library consists of three main components:
+RARAR is designed around the principle of minimal data transfer principle, downloading only the bytes necessary to accomplish specific tasks. The library consists of three main components:
 
 \begin{enumerate}
 	\item \textbf{Source Handlers}: Abstractions for file-like objects, including HTTP sources, local files, and memory buffers
-	\item \textbf{Version Handlers}: A factory design pattern for automatic RAR version detection and handling
-	\item \textbf{File Extractor}: Logic for parsing RAR headers and extracting individual files from archives
+	\item \textbf{Version Handlers}: Factory pattern implementation for automatic RAR version detection
+	\item \textbf{File Extractor}: Core logic for parsing headers and extracting files
 \end{enumerate}
 
 \subsubsection{Source Handler Abstraction}
-RARAR uses an adapter design pattern for accessing archive data regardless of the source. This abstraction allows the core parsing logic to remain independent of the archive's source (local file, HTTP URL, memory buffer, etc.).
+Our adapter pattern enables archive access regardless of source type, maintaining separation between parsing logic and data access methods. Compatible sources must implement standard Python \texttt{io} module interfaces.
 
-Any source compatible with the \texttt{io} module in Python can be used as a source handler. The library provides built-in handlers for HTTP URLs and local files.
-
-Specifically, the source handler must implement two methods for reading data:
+Required methods include:
 \begin{itemize}
-	\item \texttt{seek(position)}: Move to a specific byte position in the source
-	\item \texttt{read(size)}: Read a specific number of bytes from the current position
+	\item \texttt{seek(position)}: Navigate to specific byte positions
+	\item \texttt{read(size)}: Read specified byte counts from current position
 \end{itemize}
 
 \subsection{RAR Parsing Algorithms}
-The core of RARAR is its ability to iterate through files in an archive without downloading the compressed content. The implementation parses only the necessary headers and file information, ignoring the compressed data to vastly reduce bandwidth usage.
+RARAR's core innovation lies in iterating through archives without downloading compressed content. The implementation parses only necessary headers while skipping file data, achieving substantial bandwidth reduction.
 
-Parsing file headers requires careful handling of variable-length fields and optional components. Algorithm~\ref{alg:parse_file_header} illustrates how we extract the necessary information while minimizing the number of reads.
-
-The parser initially reads a 128-byte chunk that typically contains the entire header, avoiding multiple small reads. If the header exceeds this initial chunk (which is rare), we perform a single additional read for the remaining data. Variable-length fields like filenames are handled efficiently by first reading the fixed-size metadata that specifies their length, then extracting the exact bytes needed.
-
-Optional components like high pack/unpack sizes are only read when the header flags indicate their presence. The parser uses a BytesIO stream to sequentially extract fields from the pre-read buffer rather than making separate read calls for each field. This buffered approach means that instead of making 10-15 separate reads for individual header fields, we typically need only one or two reads total, significantly reducing overhead, especially for remote sources using HTTP Range requests.
+Algorithm~\ref{alg:parse_file_header} demonstrates our efficient header parsing approach. We initially read a 128-byte chunk containing most headers, performing additional reads only when necessary. This strategy minimizes network requests, particularly valuable for HTTP sources.
 
 \begin{algorithm}[htb]
 	\caption{Parsing File Headers}
@@ -278,21 +271,19 @@ Optional components like high pack/unpack sizes are only read when the header fl
 \section{Performance Evaluation}
 
 \subsection{Experimental Setup}
-To evaluate RARAR's performance, we conducted a series of experiments using archives of various sizes and compositions. The testing environment consisted of:
+We evaluated RARAR using diverse archives under controlled conditions:
 
 \begin{itemize}
 	\item \textbf{Client}: Python 3.13 on Ubuntu 24.04
-	\item \textbf{Server}: RClone WebDav server on Ubuntu 24.04
-	\item \textbf{Network}: 1Gbps LAN with simulated latency and bandwidth constraints using clumsy
-	\item \textbf{Test Archives}: Multiple RAR archives ranging from 10MB to 50GB with varying numbers of files (10 to 250)
+	\item \textbf{Server}: RClone WebDAV server on Ubuntu 24.04
+	\item \textbf{Network}: 1Gbps LAN with simulated latency using clumsy
+	\item \textbf{Test Archives}: RAR archives from 10MB to 50GB containing 10-250 files
 \end{itemize}
 
 \subsection{Bandwidth Usage}
-The primary advantage of RARAR is its minimal bandwidth requirements. We evaluated the library's performance by testing against archives of various sizes, measuring the amount of data transferred to perform common operations. The results demonstrate exceptional bandwidth efficiency and scalability.
+RARAR demonstrates exceptional bandwidth efficiency. Table~\ref{tab:bandwidth_comparison} shows bandwidth savings across various archive sizes. The key finding is that bandwidth usage remains constant regardless of archive size, scaling linearly with file count at approximately 32KB per file due to our header-only parsing approach.
 
-Table~\ref{tab:bandwidth_comparison} summarizes the bandwidth savings achieved by RARAR for different archive sizes. The results demonstrate how RARAR can be used to efficiently access large archives. Notably, bandwidth usage is independent of archive size and instead scales linearly with the number of files in the archive, with each file requiring approximately 32KB of data transfer. This is due to RARAR's approach of parsing only file headers while ignoring data blocks.
-
-For a 50GB archive containing 250 files, RARAR required only 7.82MB of data transfer to list all files in the archive. This represents a 99.98\% reduction in bandwidth usage compared to traditional methods requiring full archive download.
+For a 50GB archive with 250 files, RARAR required only 7.82MB of data transfer—a 99.98\% reduction compared to traditional methods.
 
 \begin{table}[htbp]
 	\caption{Bandwidth Comparison: RARAR vs. Traditional Methods}
@@ -338,18 +329,13 @@ For a 50GB archive containing 250 files, RARAR required only 7.82MB of data tran
 \end{table}
 
 \subsection{Operation Latency}
-The operation latency of RARAR is influenced primarily by network conditions, particularly latency, due to the multiple small HTTP requests required for parsing archive structures. Our experiments measured the time taken to list files in RAR archives under different network latencies.
+Operation latency depends primarily on network conditions due to multiple small HTTP requests. Table~\ref{tab:network_impact} shows performance under various network latencies. Listing 250 files takes 411ms at 1ms latency but increases to 33,961ms at 100ms latency.
 
-To simulate various network conditions, we used the clumsy tool to introduce artificial latency. The tests were conducted against a 100MB archive.
-
-Table~\ref{tab:network_impact} shows the impact of varying network latencies on the time required to list the contents of RAR archives with different numbers of files. As expected, higher network latency results in increased operation time. For instance, listing the contents of an archive with 250 files takes approximately 411 ms with a network latency of 1 ms, but this increases to 33,961 ms with a latency of 100 ms.
-
-Because of the large impact network latency has on RARAR's performance with HTTP sources, several optimizations have already been implemented:
-
+To mitigate latency impact, we implemented:
 \begin{itemize}
-	\item Batch reading of headers where possible
-	\item Predictive prefetching of likely-to-be-needed blocks
-	\item Adaptive chunk sizing based on network conditions
+	\item Batch reading of adjacent headers
+	\item Predictive prefetching for likely-needed blocks
+	\item Dynamic chunk sizing based on network conditions
 \end{itemize}
 
 \begin{table}[htbp]
@@ -384,8 +370,7 @@ Because of the large impact network latency has on RARAR's performance with HTTP
 \end{table}
 
 \subsection{Scalability Analysis}
-
-As demonstrated in the results of Table~\ref{tab:bandwidth_comparison}, RARAR's bandwidth usage has perfect scalability with archive size, and, as demonstrated in Table~\ref{tab:network_impact}, the latency of operations scales linearly with the number of files in the archive. This means that RARAR can perfectly handle archives of any size and efficiently handle large numbers of files.
+Our analysis demonstrates excellent scalability characteristics. Bandwidth usage remains constant regardless of archive size (Table~\ref{tab:bandwidth_comparison}), while operation latency scales linearly with file count (Table~\ref{tab:network_impact}). This enables efficient handling of arbitrarily large archives containing numerous files.
 
 \section{Limitations and Future Work}
 
@@ -403,38 +388,35 @@ Despite its advantages, RARAR currently has several limitations:
 \end{enumerate}
 
 \subsection{Future Work}
-Several avenues for extending RARAR's capabilities include:
+Several promising extensions exist:
 
 \subsubsection{Compressed File Support}
-Implementing support for the most common RAR compression methods would greatly expand the library's utility. This would require:
+Implementing support for common RAR compression methods would significantly enhance utility. This requires:
 \begin{itemize}
-	\item Implementing or integrating RAR decompression algorithms
-	\item Analyzing whether partial decompression from arbitrary positions is feasible
-	\item Optimizing to minimize the amount of compressed data needed
+	\item Integration of RAR decompression algorithms
+	\item Analysis of partial decompression feasibility
+	\item Optimization of compressed data retrieval
 \end{itemize}
 
-One promising approach would be to develop a partial decompression strategy that identifies blocks containing the target file and downloads only the necessary compressed blocks. From there, the library could perform targeted decompression of those blocks, allowing for random access to compressed files.
+A promising approach involves developing partial decompression strategies that identify and download only necessary compressed blocks before performing targeted decompression.
 
 \subsubsection{RAR5 Support}
-RAR5 is the latest version of the RAR format, introducing new features and compression methods. Implementing RAR5 support would expand RARAR's versatility and would require a rework of the header parsing logic to accommodate the new block structures and compression methods.
+Supporting RAR5 would extend versatility by accommodating the latest format version. Our extensible factory pattern facilitates adding new version handlers while maintaining compatibility with existing formats.
 
-The current implementation of RARAR uses a factory design pattery, designed to be extensible, allowing for the addition of new version handlers as needed. This would enable RARAR to support both RAR3 and RAR5 formats seamlessly.
-
-\subsubsection{Integration into Web Servers}
-Integrating RARAR with web-based file servers was our original inspiration for the project. It could enable servers to much more efficiently serve files. We envision a system where:
-
+\subsubsection{Server Integration}
+Integrating RARAR into web servers could enable efficient file serving through:
 \begin{itemize}
-	\item A web server can serve RAR archives with random access capabilities
-	\item Clients can request specific files or ranges from the archive
-	\item The server handles decompression and file extraction on-the-fly
+	\item Server-side random access capabilities
+	\item Client-specific file range requests
+	\item On-the-fly decompression and extraction
 \end{itemize}
 
 \section{Conclusion}
-RARAR.py represents a novel approach to working with RAR archives, enabling random access with minimal bandwidth requirements. By carefully parsing RAR file structures and leveraging HTTP Range requests, our solution enables efficient listing and extraction of files from remote archives without downloading entire archives.
+RARAR represents a novel approach to working with RAR archives. By combining careful format parsing with HTTP Range requests, our solution enables efficient file listing and extraction without full archive downloads.
 
-The demonstrated bandwidth savings in accessing a 50GB archive while transferring only 0.32MB of data highlights the significant efficiency improvements possible with this approach. While current limitations restrict the library to uncompressed files, the foundation established by RARAR opens pathways for future work on more comprehensive random access archive handling.
+The demonstrated bandwidth savings when accessing a 50GB archive while transferring only 0.32MB highlight significant efficiency improvements. Although currently limited to uncompressed files, RARAR establishes a foundation for comprehensive random-access archive handling.
 
-This project contributes both a practical tool for developers working with remote archives and demonstrates techniques that could be applied to other archive formats to enable more efficient remote file access.
+This work provides both practical tools for developers and demonstrates techniques applicable to other archive formats, advancing the state of remote file access optimization.
 
 \begin{thebibliography}{00}
 	\bibitem{b1} E. Benbourenane, "RARAR.py: Random Access RAR," GitHub repository, Available: https://github.com/eliasbenb/RARAR.py, 2025.

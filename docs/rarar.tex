@@ -44,7 +44,7 @@
 \maketitle
 
 \begin{abstract}
-	This paper presents RARAR (Random Access RAR)\footnote{Available at: https://github.com/eliasbenb/RARAR.py}, a Python library that enables efficient access to RAR archives without requiring complete downloads. Our implementation supports multiple source types (HTTP URLs, local files, file-like objects) and achieves significant bandwidth reduction for remote archive access. We discuss the technical challenges of working with RAR formats, detail our architecture, and demonstrate bandwidth savings of over 99\% compared to traditional approaches. While currently limited to uncompressed files, our framework provides a foundation for future development in random access archive handling.
+	This paper presents RARAR (Random Access RAR)\footnote{Available at: https://github.com/eliasbenb/RARAR.py}, a Python library that enables efficient access to RAR archives without requiring complete downloads. Our implementation supports multiple source types (HTTP URLs, local files, and file-like objects) while achieving significant bandwidth reduction for remote archive access. We discuss the technical challenges of parsing RAR formats, detail our architecture, and demonstrate bandwidth savings exceeding 99\% compared to traditional approaches. While currently limited to uncompressed files, our framework provides a foundation for future development in random-access archive handling.
 \end{abstract}
 
 \begin{IEEEkeywords}
@@ -52,96 +52,92 @@
 \end{IEEEkeywords}
 
 \section{Introduction}
-File archiving remains a common practice for distributing collections of files efficiently, especially on the cloud where bandwidth and storage are limited. The RAR format, despite being proprietary, continues to be widely used due to its popularity and simplicity. However, traditional approaches to working with RAR archives require downloading the entire archive before any file within it can be accessed or extracted. This becomes particularly problematic when dealing with large archives hosted remotely.
+File archiving remains a fundamental practice for efficiently distributing file collections, particularly in cloud environments where bandwidth and storage constraints are critical considerations. The RAR format, despite its proprietary nature, continues to see widespread adoption due to its robust compression capabilities and widespread tool support. However, traditional RAR handling approaches require downloading entire archives before accessing individual files—a significant limitation when working with large remote archives.
 
-The ability to randomly access specific portions of an archive without downloading the entire file would be valuable in numerous scenarios, such as:
+Random access to archive contents would provide substantial benefits across numerous applications:
 \begin{itemize}
-	\item Previewing archive contents before deciding to download
-	\item Extracting a single small file from a large archive
-	\item Streaming media files stored within archives
-	\item Indexing archive contents for search engines
+	\item Previewing archive contents without full downloads
+	\item Extracting specific files from large archives
+	\item Streaming media content stored within archives
+	\item Enabling search engine indexing of archive contents
 \end{itemize}
 
-RARAR addresses this gap by providing a Python package that enables random access to RAR archives. While it supports local files, in-memory buffers, and other file-like objects, the library primarily focuses on HTTP sources due to the massive benefits it provides for remote archives. The implementation leverages HTTP Range requests to efficiently retrieve specific file segments, thereby reducing bandwidth consumption and improving overall performance.
+RARAR addresses this limitation by providing a Python package that implements random access to RAR archives. While supporting local files, in-memory buffers, and other file-like objects, the library emphasizes HTTP sources due to their significant practical benefits. Our implementation leverages HTTP Range requests to selectively retrieve file segments, dramatically reducing bandwidth requirements and improving access efficiency.
 
-The RARAR library is available as open-source software on GitHub: \url{https://github.com/eliasbenb/RARAR.py}. This paper discusses the design, implementation, and performance characteristics of the library.
+The RARAR library is available as open-source software on GitHub: \url{https://github.com/eliasbenb/RARAR.py}. This paper presents the design, implementation, and performance characteristics of the library.
 
 \subsection{Problem Statement}
-Traditional methods for accessing remote archives suffer from significant inefficiencies, especially as sizes grow. Consider extracting a 100KB document from a 100GB remote archive - conventional approaches require:
+Current approaches to accessing remote archives exhibit substantial inefficiencies, particularly as archive sizes increase. Consider extracting a 100KB document from a 100GB remote archive—the conventional workflow requires:
 
 \begin{enumerate}
 	\item Downloading the entire 100GB archive
-	\item Extracting the 100KB file locally
-	\item Discarding 99.9999\% of the unused archive
+	\item Extracting the 100KB target file
+	\item Discarding 99.9999\% of the downloaded data
 \end{enumerate}
 
-This approach is not only inefficient but often impractical due to:
+This approach suffers from several critical issues:
 \begin{itemize}
-	\item Bandwidth constraints and costs
+	\item Excessive bandwidth consumption and associated costs
 	\item Storage limitations on client devices
 	\item Time delays during the download process
-	\item Environmental impact of unnecessary data transfer
+	\item Environmental impact due to unnecessary data transfer
 \end{itemize}
 
 \subsection{Contribution}
-The primary contributions of this paper are:
+This paper makes the following contributions:
 \begin{itemize}
-	\item A detailed analysis of the RAR file format from a random access perspective
-	\item Development of a Python library that enables random access to RAR archives via HTTP and other sources
-	\item Implementation of a RAR parsing algorithm
-	\item Empirical evaluation of the bandwidth savings achieved through this approach
+	\item A comprehensive analysis of the RAR file format from a random-access perspective
+	\item Development of a Python library enabling random access to RAR archives via multiple source types
+	\item Implementation of an efficient RAR parsing algorithm
+	\item Empirical evaluation of bandwidth-saving potential in HTTP-based RAR access with HTTP Range requests
 \end{itemize}
 
 \section{Related Work}
 \subsection{Existing RAR Handling Libraries}
-Several libraries exist for handling RAR archives in various programming languages. However, none of them are designed with random access as a feature:
+Several libraries provide RAR archive handling capabilities, though none are designed for random access:
 
 \begin{itemize}
-	\item \textbf{UnRAR}: The official C library from RARLAB provides extraction capabilities but requires local access to the full archive.
+	\item \textbf{UnRAR}: The official C library from RARLAB provides extraction functionality but requires local access to complete archives.
 
-	\item \textbf{Python-rarfile}: A Python module for RAR archive reading that wraps the UnRAR library or command-line tools. While feature-rich, it still requires downloading the entire archive before extraction.
-
-	\item \textbf{lzopfs}: A FUSE-based filesystem for parsing LZOP archives with random access.
+	\item \textbf{Python-rarfile}: A Python module wrapping the UnRAR library or command-line tools. While feature-complete, it requires full archive availability before extraction.
 \end{itemize}
 
 \subsection{Random Access in Other Archive Formats}
-While random access to RAR archives has not been well-explored, some research has been conducted on random access to other archive formats:
+Research on random access has primarily focused on formats other than RAR:
 
 \begin{itemize}
-	\item \textbf{ZIP}: The ZIP format inherently supports better random access due to its directory structure being located at the end of the file. Libraries like \texttt{zipfile} in Python can read the central directory without downloading the entire archive, though they still require full file access for extraction.
+	\item \textbf{ZIP}: The ZIP format inherently supports efficient random access through its central directory structure located at the file's end. Libraries like Python's \texttt{zipfile} can parse this directory without downloading the entire archive, though full file access remains necessary for extraction.
 
-	\item \textbf{LZOP}: The LZOP format allows for random access to compressed data blocks, as demonstrated by the lzopfs project, enabling efficient extraction of specific files. However, it is not as widely used as RAR or ZIP.
+	\item \textbf{LZOP}: The LZOP format enables random access to compressed data blocks, as demonstrated by the lzopfs project\cite{b5}, allowing efficient extraction of specific files. However, LZOP lacks the widespread adoption of RAR or ZIP.
 \end{itemize}
 
 \subsection{HTTP Range Requests in Content Delivery}
-HTTP Range requests have been utilized in various content delivery applications like video streaming and resuming downloads. These applications allow clients to request specific byte ranges of a file, making data transfer much more efficient and less wasteful.
+HTTP Range requests have proven valuable in various content delivery scenarios such as video streaming and resumable downloads. These applications demonstrate how requesting specific byte ranges optimizes data transfer and reduces bandwidth waste.
 
-Our work builds upon these foundations, applying range request techniques specifically to the challenges of RAR archive access. To our knowledge, RARAR represents the first implementation of random access to RAR archives over HTTP.
+Our work extends these techniques to RAR archive access. To our knowledge, RARAR represents the first implementation of HTTP-based random access for RAR archives.
 
 \section{Technical Background}
 
 \subsection{RAR File Format}
-The RAR archive format was developed by Eugene Roshal and is maintained by win.rar GmbH. While the format is proprietary, reverse-engineered specifications are available from various sources. The format consists of a series of blocks, including:
+The RAR archive format, developed by Eugene Roshal and maintained by win.rar GmbH, uses a proprietary structure that has been partially reverse-engineered by the community. The format consists of sequential blocks:
 
 \begin{enumerate}
 	\item Marker block (RAR signature)
 	\item Archive header block
-	\item File header blocks (one for each file)
+	\item File header blocks (one per file)
 	\item End of archive block
 \end{enumerate}
 
-The RAR format uses a consistent block structure throughout the archive. Following the basic layout outlined in Figure~\ref{fig:block_header}, each block begins with a header that contains information about the block type, size, and various flags.
+Each block follows a consistent structure (Figure~\ref{fig:block_header}) with a header containing block type, size, and various flags.
 
 \begin{figure}[htbp]
 	\centerline{\includegraphics[width=\columnwidth]{fig/rar-block-header-diagram.png}}
-	\caption{ERAR Block Header Structure}
+	\caption{RAR Block Header Structure}
 	\label{fig:block_header}
 \end{figure}
 
 \subsubsection{File Header Structure}
-The file header is particularly important for random access as it contains information on where to locate and extract specific files. The file header extends the basic block structure with additional fields, as shown in Table~\ref{tab:file_header}.
-
-Most notably, the file header includes fields for file size, packed size, file attributes, and file name, all of which are crucial for random access.
+File headers are crucial for random access as they contain location and extraction information. The header extends the basic block structure with additional fields (Table~\ref{tab:file_header}), including file size, packed size, attributes, and filename—all essential for selective file access.
 
 \begin{table}[htbp]
 	\caption{RAR File Header Fields (after the basic header)}

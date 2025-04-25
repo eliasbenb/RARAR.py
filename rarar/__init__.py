@@ -12,7 +12,7 @@ __version__ = "0.1.0"
 import logging
 
 logging.getLogger("rarar").addHandler(logging.NullHandler())
-logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("httpx").setLevel(logging.INFO)
 
 
 __all__ = ["RarReader", "RarFile"]

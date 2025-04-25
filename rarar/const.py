@@ -17,6 +17,7 @@ RAR5_BLOCK_END = 5
 
 # Default chunk size for searching and reading
 DEFAULT_CHUNK_SIZE = 4096
+HTTP_CHUNK_SIZE = 32768
 MAX_SEARCH_SIZE = 1024 * 1024
 
 # Header flags

@@ -28,8 +28,7 @@ class RarReaderBase(ABC):
         """Initialize the RAR reader with a source.
 
         Args:
-            source (str | BinaryIO): Either a file-like object with seek and read methods,
-                                    a URL, or a local file path
+            source (str | BinaryIO): Either a file-like object with seek and read methods, a URL, or a local file path
             chunk_size (int): Size of chunks to read when searching
             session (httpx.Client | None): Session to use for HTTP requests if source is a URL
 
@@ -79,8 +78,14 @@ class RarReaderBase(ABC):
 
         self.file_obj.seek(start)
         data = self.file_obj.read(length)
+
+        # If we got less data than expected, it might be EOF
+        if len(data) < length:
+            logger.debug(
+                f"Partial read: requested {length} bytes, got {len(data)} bytes"
+            )
+
         self.total_read += len(data)
-        logger.debug(f"Read {len(data)} bytes from position {start}")
 
         return data
 

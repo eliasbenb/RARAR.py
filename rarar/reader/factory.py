@@ -6,7 +6,13 @@ from urllib.parse import urlsplit
 
 import httpx
 
-from ..const import DEFAULT_CHUNK_SIZE, MAX_SEARCH_SIZE, RAR3_MARKER, RAR5_MARKER
+from ..const import (
+    DEFAULT_CHUNK_SIZE,
+    HTTP_CHUNK_SIZE,
+    MAX_SEARCH_SIZE,
+    RAR3_MARKER,
+    RAR5_MARKER,
+)
 from ..exceptions import (
     RarMarkerNotFoundError,
     UnknownSourceTypeError,
@@ -38,7 +44,7 @@ def _is_url(source: str) -> bool:
 
 def RarReader(
     source: str | BinaryIO,
-    chunk_size: int = DEFAULT_CHUNK_SIZE,
+    chunk_size: int | None = None,
     session: httpx.Client | None = None,
     force_version: int | None = None,
 ) -> RarReaderBase:
@@ -46,7 +52,7 @@ def RarReader(
 
     Args:
         source (str | BinaryIO): The source to read from
-        chunk_size (int): Size of chunks to read
+        chunk_size (int | None): Size of chunks to read
         session (httpx.Client | None): Session for HTTP requests
         force_version (int | None): Force a specific RAR version (4 or 5)
 
@@ -57,6 +63,12 @@ def RarReader(
         UnsupportedRarVersionError: If the RAR version is not supported
         RarMarkerNotFoundError: If no RAR marker is found
     """
+    if chunk_size is None:
+        if isinstance(source, str) and _is_url(source):
+            chunk_size = HTTP_CHUNK_SIZE
+        else:
+            chunk_size = DEFAULT_CHUNK_SIZE
+
     if force_version is not None:
         if force_version == 4:
             return Rar3Reader(source, chunk_size, session)

@@ -2,7 +2,7 @@ import logging
 
 import httpx
 
-from ..exceptions import NetworkError, RangeRequestsNotSupportedError
+from ..exceptions import NetworkError
 
 logger = logging.getLogger("rarar")
 
@@ -15,6 +15,17 @@ class HttpFile:
         self.session = session or httpx.Client(http2=False)
         self.position = 0
         self.total_downloaded = 0
+        self.file_size = self._get_file_size()
+
+    def _get_file_size(self) -> int | None:
+        """Get the total file size from the server."""
+        try:
+            response = self.session.head(self.url)
+            if response.status_code == 200:
+                return int(response.headers.get("Content-Length", 0))
+        except Exception:
+            pass
+        return None
 
     def seek(self, position: int) -> int:
         """Change the current position in the file.
@@ -44,6 +55,12 @@ class HttpFile:
         if size is None or size <= 0:
             return b""
 
+        if self.file_size is not None:
+            remaining = self.file_size - self.position
+            if remaining <= 0:
+                return b""
+            size = min(size, remaining)
+
         end = self.position + size - 1
         headers = {"Range": f"bytes={self.position}-{end}"}
 
@@ -52,27 +69,28 @@ class HttpFile:
         try:
             response = self.session.get(self.url, headers=headers)
 
-            # Check if range requests are supported
-            if response.status_code == 200 and "Content-Range" not in response.headers:
-                raise RangeRequestsNotSupportedError(
-                    "The server does not support HTTP range requests"
-                )
+            # Handle successful partial content
+            if response.status_code == 206:
+                content = response.content
+                self.total_downloaded += len(content)
+                self.position += len(content)
+                return content
 
-            if response.status_code not in (200, 206):
-                raise NetworkError(
-                    f"Failed to read bytes from URL: {response.status_code}"
-                )
+            # Handle full content (some servers return 200 for Range requests)
+            elif response.status_code == 200:
+                content = response.content[self.position : self.position + size]
+                self.total_downloaded += len(content)
+                self.position += len(content)
+                return content
 
-            content = response.content
-            self.total_downloaded += len(content)
-            self.position += len(content)
+            # Handle range not satisfiable (416) - we're at EOF
+            elif response.status_code == 416:
+                return b""
 
-            logger.debug(f"Total downloaded so far: {self.total_downloaded} bytes")
-
-            if len(content) != size and response.status_code == 206:
-                logger.warning(f"Expected {size} bytes but got {len(content)} bytes")
-
-            return content
+            else:
+                raise NetworkError(f"Failed to read bytes: {response.status_code}")
 
         except httpx.RequestError as e:
+            if "peer closed connection" in str(e).lower():
+                return b""
             raise NetworkError(f"HTTP request failed: {str(e)}")

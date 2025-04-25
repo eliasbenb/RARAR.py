@@ -4,15 +4,11 @@ RARAR is a Python package that enables random access to RAR archives, allowing y
 
 While the main use case for RARAR is to access RAR archives stored over HTTP, it can also be used to access any file-like object that supports seeking and reading. This includes local files, in-memory files, and other file-like objects.
 
-> [!IMPORTANT]  
-> Unfortunately, due to limitations in the RAR format, RARAR cannot currently access RAR archives that are either:
->
-> - Compressed with any compression method other than `Store`
-> - RAR5 archives
-> - Encrypted
-> - Multi-part
->
-> Additionally, if using an HTTP URL, the server must support `Range` requests to allow for partial downloads.
+## Installation
+
+```shell
+pip install git+https://github.com/eliasbenb/RARAR.py.git
+```
 
 ## Features
 
@@ -20,11 +16,23 @@ While the main use case for RARAR is to access RAR archives stored over HTTP, it
 - Random Access: Extract specific files from an archive efficiently
 - Support for Multiple Sources: Works with local file paths, file-like objects, and HTTP URLs
 
-## Installation
+## TODO
 
-```shell
-pip install git+https://github.com/eliasbenb/RARAR.py.git
-```
+> [!IMPORTANT]  
+> Unfortunately, due to limitations in the RAR format, RARAR cannot currently access RAR archives that are either:
+>
+> - Compressed with any compression method other than `Store`
+> - Encrypted
+> - Multi-part
+>
+> Additionally, if using an HTTP URL, the server must support `Range` requests to allow for partial downloads.
+
+- Support for RAR5 archives
+- Look into support compression methods other than `Store`
+- TUI for the CLI
+- Support for multi-file downloads
+- Support for directory downloads
+- Create file tree UI for CLI's list output
 
 ## Python Usage
 

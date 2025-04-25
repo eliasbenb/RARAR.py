@@ -1,4 +1,4 @@
-# RARAR.py - Random Access RAR
+# RARAR.py
 
 RARAR is a Python package that enables random access to RAR archives, allowing you to list and extract files without downloading the entire archive.
 
@@ -31,7 +31,7 @@ pip install git+https://github.com/eliasbenb/RARAR.py.git
 ### Listing Contents of a RAR Archive
 
 ```python
-from rarar.reader import RarReader
+from rarar import RarReader
 
 source = "https://example.com/archive.rar"  # URL, file, or file-like object
 reader = RarReader(source) 
@@ -42,7 +42,7 @@ for file in reader.list_files():
 ### Extracting a File from a RAR Archive
 
 ```python
-from rarar.reader import RarReader
+from rarar import RarReader
 
 source = "./archives/archive.rar"  # URL, file, or file-like object
 reader = RarReader("https://example.com/archive.rar")

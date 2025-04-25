@@ -8,6 +8,7 @@ While the main use case for RARAR is to access RAR archives stored over HTTP, it
 > Unfortunately, due to limitations in the RAR format, RARAR cannot currently access RAR archives that are either:
 >
 > - Compressed with any compression method other than `Store`
+> - RAR5 archives
 > - Encrypted
 > - Multi-part
 >
@@ -25,27 +26,58 @@ While the main use case for RARAR is to access RAR archives stored over HTTP, it
 pip install git+https://github.com/eliasbenb/RARAR.py.git
 ```
 
-## Usage
+## Python Usage
+
+### Listing Contents of a RAR Archive
 
 ```python
-from rarar import RarReader
+from rarar.reader import RarReader
 
-# From a URL
-reader = RarReader("https://example.com/archive.rar")
+source = "https://example.com/archive.rar"  # URL, file, or file-like object
+reader = RarReader(source) 
 for file in reader.list_files():
     print(f"{file.name} - {file.size} bytes")
-
-# From a local file
-reader = RarReader("/path/to/archive.rar")
-for file in reader.list_files():
-    print(f"{file.name} - {file.size} bytes")
-
-# From a file-like object
-from io import BytesIO
-
-data = b"..."  # Your RAR data
-reader = RarReader(BytesIO(data))
-file = next(reader.iter_files())
-reader.download_file(file, "/path/to/save/file.txt")
 ```
 
+### Extracting a File from a RAR Archive
+
+```python
+from rarar.reader import RarReader
+
+source = "./archives/archive.rar"  # URL, file, or file-like object
+reader = RarReader("https://example.com/archive.rar")
+file = next(reader.iter_files()) # Get the first file in the archive
+reader.extract_file(file, "/path/to/save/file.dat")
+```
+
+## CLI Usage
+
+You can also use the RARAR package via the command-line interface to list and extract files from a RAR archive.
+
+
+```
+usage: rarar [-h] [--debug] {list,extract} ...
+
+Random Access RAR Reader - Access RAR archives without loading the entire file into memory
+
+positional arguments:
+  {list,extract}  Command to execute
+    list          List contents of a RAR archive
+    extract       Extract a file from a RAR archive
+
+options:
+  -h, --help      show this help message and exit
+  --debug         Enable debug logging
+```
+
+### Listing Contents of a RAR Archive
+
+```bash
+rarar list <source> [--json]
+```
+
+### Extracting a File from a RAR Archive
+
+```bash
+rarar extract <source> <file_index> [-o <output_path>]
+```

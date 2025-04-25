@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from .const import COMPRESSION_METHODS
+from .const import RAR3_COMPRESSION_METHODS
 
 
 @dataclass
@@ -56,7 +56,7 @@ class RarFile:
             "size": self.size,
             "compressed_size": self.compressed_size,
             "method": self.method,
-            "method_name": COMPRESSION_METHODS.get(
+            "method_name": RAR3_COMPRESSION_METHODS.get(
                 self.method, f"Unknown ({hex(self.method)})"
             ),
             "crc": self.crc,

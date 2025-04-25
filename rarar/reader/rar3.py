@@ -5,16 +5,16 @@ from pathlib import Path
 from typing import Generator
 
 from ..const import (
-    COMPRESSION_METHODS,
-    COMPRESSION_METHODS_REVERSE,
-    FLAG_DIRECTORY,
-    FLAG_HAS_DATA,
-    FLAG_HAS_HIGH_SIZE,
-    FLAG_HAS_UNICODE_NAME,
     MAX_SEARCH_SIZE,
     RAR3_BLOCK_END,
     RAR3_BLOCK_FILE,
     RAR3_BLOCK_HEADER,
+    RAR3_COMPRESSION_METHODS,
+    RAR3_COMPRESSION_METHODS_REVERSE,
+    RAR3_FLAG_DIRECTORY,
+    RAR3_FLAG_HAS_DATA,
+    RAR3_FLAG_HAS_HIGH_SIZE,
+    RAR3_FLAG_HAS_UNICODE_NAME,
     RAR3_MARKER,
 )
 from ..exceptions import (
@@ -126,7 +126,7 @@ class Rar3Reader(RarReaderBase):
 
             # Check if high pack/unp sizes are present
             current_pos = 4 + 4 + 1 + 4 + 4 + 1 + 1 + 2 + 4
-            if head_flags & FLAG_HAS_HIGH_SIZE:
+            if head_flags & RAR3_FLAG_HAS_HIGH_SIZE:
                 logger.debug("File has high pack/unp sizes")
                 high_pack_size = struct.unpack("<I", reader.read(4))[0]
                 high_unp_size = struct.unpack("<I", reader.read(4))[0]
@@ -140,7 +140,7 @@ class Rar3Reader(RarReaderBase):
             file_name_data = reader.read(name_size)
 
             # Handle Unicode filenames
-            if head_flags & FLAG_HAS_UNICODE_NAME:
+            if head_flags & RAR3_FLAG_HAS_UNICODE_NAME:
                 logger.debug("Processing Unicode filename")
                 zero_pos = file_name_data.find(b"\x00")
                 if zero_pos != -1:
@@ -152,7 +152,7 @@ class Rar3Reader(RarReaderBase):
             else:
                 file_name = file_name_data.decode("ascii", errors="replace")
 
-            is_directory = (head_flags & FLAG_DIRECTORY) == FLAG_DIRECTORY
+            is_directory = (head_flags & RAR3_FLAG_DIRECTORY) == RAR3_FLAG_DIRECTORY
             logger.debug(f"{'Directory' if is_directory else 'File'}: {file_name}")
 
             # Calculate positions for byte range info
@@ -160,7 +160,7 @@ class Rar3Reader(RarReaderBase):
             next_pos = data_offset
 
             # If the block has data, skip over it
-            if head_flags & FLAG_HAS_DATA:
+            if head_flags & RAR3_FLAG_HAS_DATA:
                 next_pos += full_pack_size
 
             file_info = RarFile(
@@ -333,7 +333,7 @@ class Rar3Reader(RarReaderBase):
                 buffer_offset += head_size
 
                 # If this block has data, skip it too
-                if head_flags & FLAG_HAS_DATA:
+                if head_flags & RAR3_FLAG_HAS_DATA:
                     # Read just the ADD_SIZE field if it's in the buffer
                     if buffer_offset + 4 <= len(current_buffer):
                         add_size = struct.unpack(
@@ -379,11 +379,11 @@ class Rar3Reader(RarReaderBase):
                 f"Directory extracts are not supported: {file_info.path}"
             )
 
-        if file_info.method != COMPRESSION_METHODS_REVERSE["Store"]:
+        if file_info.method != RAR3_COMPRESSION_METHODS_REVERSE["Store"]:
             raise CompressionNotSupportedError(
                 f"Currently only uncompressed files (method 0x30 'Store') are "
                 f"supported. This file uses method {hex(file_info.method)} "
-                f"({COMPRESSION_METHODS.get(file_info.method, 'Unknown')})"
+                f"({RAR3_COMPRESSION_METHODS.get(file_info.method, 'Unknown')})"
             )
 
         logger.info(

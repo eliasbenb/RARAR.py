@@ -1,3 +1,8 @@
+# Default chunk size for searching and reading
+DEFAULT_CHUNK_SIZE = 4096
+HTTP_CHUNK_SIZE = 32768
+MAX_SEARCH_SIZE = 2**20
+
 # RAR marker and block types
 RAR3_MARKER = b"\x52\x61\x72\x21\x1a\x07\x00"
 RAR5_MARKER = b"\x52\x61\x72\x21\x1a\x07\x01\x00"
@@ -15,16 +20,11 @@ RAR5_BLOCK_SERVICE = 3
 RAR5_BLOCK_ENCRYPTION = 4
 RAR5_BLOCK_END = 5
 
-# Default chunk size for searching and reading
-DEFAULT_CHUNK_SIZE = 4096
-HTTP_CHUNK_SIZE = 32768
-MAX_SEARCH_SIZE = 1024 * 1024
-
 # Header flags
-FLAG_DIRECTORY = 0xE0
-FLAG_HAS_HIGH_SIZE = 0x100
-FLAG_HAS_UNICODE_NAME = 0x200
-FLAG_HAS_DATA = 0x8000
+RAR3_FLAG_DIRECTORY = 0xE0
+RAR3_FLAG_HAS_HIGH_SIZE = 0x100
+RAR3_FLAG_HAS_UNICODE_NAME = 0x200
+RAR3_FLAG_HAS_DATA = 0x8000
 
 # RAR5 header flags
 RAR5_FLAG_EXTRA_PRESENT = 0x0001
@@ -42,7 +42,7 @@ RAR5_FILE_FLAG_CRC_PRESENT = 0x0004
 RAR5_FILE_FLAG_UNKNOWN_SIZE = 0x0008
 RAR5_FILE_FLAG_HAS_MTIME = 0x0200
 
-COMPRESSION_METHODS: dict[int, str] = {
+RAR3_COMPRESSION_METHODS: dict[int, str] = {
     0x30: "Store",
     0x31: "Fastest",
     0x32: "Fast",
@@ -50,8 +50,8 @@ COMPRESSION_METHODS: dict[int, str] = {
     0x34: "Good",
     0x35: "Best",
 }
-COMPRESSION_METHODS_REVERSE: dict[str, int] = {
-    v: k for k, v in COMPRESSION_METHODS.items()
+RAR3_COMPRESSION_METHODS_REVERSE: dict[str, int] = {
+    v: k for k, v in RAR3_COMPRESSION_METHODS.items()
 }
 
 RAR5_COMPRESSION_METHODS: dict[int, str] = {

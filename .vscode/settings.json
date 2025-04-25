@@ -1,10 +1,11 @@
 {
+    "[latex]": {
+        "editor.wordWrap": "on"
+    },
     "[python]": {
         "editor.defaultFormatter": "charliermarsh.ruff"
     },
-    "[tex]": {
-        "editor.wordWrap": "on"
-    },
+    "latex-workshop.formatting.latex": "latexindent",
     "python.defaultInterpreterPath": ".venv/bin/python",
     "ruff.fixAll": true,
     "ruff.organizeImports": true

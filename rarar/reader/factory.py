@@ -4,7 +4,7 @@ import pathlib
 from typing import BinaryIO
 from urllib.parse import urlsplit
 
-import requests
+import httpx
 
 from ..const import DEFAULT_CHUNK_SIZE, MAX_SEARCH_SIZE, RAR3_MARKER, RAR5_MARKER
 from ..exceptions import (
@@ -39,7 +39,7 @@ def _is_url(source: str) -> bool:
 def RarReader(
     source: str | BinaryIO,
     chunk_size: int = DEFAULT_CHUNK_SIZE,
-    session: requests.Session | None = None,
+    session: httpx.Client | None = None,
     force_version: int | None = None,
 ) -> RarReaderBase:
     """Factory function to create the appropriate RAR reader based on the format.
@@ -47,7 +47,7 @@ def RarReader(
     Args:
         source (str | BinaryIO): The source to read from
         chunk_size (int): Size of chunks to read
-        session (requests.Session | None): Session for HTTP requests
+        session (httpx.Client | None): Session for HTTP requests
         force_version (int | None): Force a specific RAR version (4 or 5)
 
     Returns:

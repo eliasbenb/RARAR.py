@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import BinaryIO, Generator
 from urllib.parse import urlsplit
 
-import requests
+import httpx
 
 from ..const import DEFAULT_CHUNK_SIZE
 from ..exceptions import UnknownSourceTypeError
@@ -23,7 +23,7 @@ class RarReaderBase(ABC):
         self,
         source: str | BinaryIO,
         chunk_size: int = DEFAULT_CHUNK_SIZE,
-        session: requests.Session | None = None,
+        session: httpx.Client | None = None,
     ) -> None:
         """Initialize the RAR reader with a source.
 
@@ -31,7 +31,7 @@ class RarReaderBase(ABC):
             source (str | BinaryIO): Either a file-like object with seek and read methods,
                                     a URL, or a local file path
             chunk_size (int): Size of chunks to read when searching
-            session (requests.Session | None): Session to use for HTTP requests if source is a URL
+            session (httpx.Client | None): Session to use for HTTP requests if source is a URL
 
         Raises:
             UnknownSourceTypeError: If the source type is not recognized

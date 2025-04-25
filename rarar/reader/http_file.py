@@ -1,6 +1,6 @@
 import logging
 
-import requests
+import httpx
 
 from ..exceptions import NetworkError, RangeRequestsNotSupportedError
 
@@ -10,9 +10,9 @@ logger = logging.getLogger("rarar")
 class HttpFile:
     """Class for handling HTTP file operations with range requests."""
 
-    def __init__(self, url: str, session: requests.Session | None = None):
+    def __init__(self, url: str, session: httpx.Client | None = None):
         self.url = url
-        self.session = session or requests.Session()
+        self.session = session or httpx.Client(http2=False)
         self.position = 0
         self.total_downloaded = 0
 
@@ -50,7 +50,7 @@ class HttpFile:
         logger.debug(f"Requesting bytes {self.position}-{end} ({size} bytes)")
 
         try:
-            response = self.session.get(self.url, headers=headers, stream=True)
+            response = self.session.get(self.url, headers=headers)
 
             # Check if range requests are supported
             if response.status_code == 200 and "Content-Range" not in response.headers:
@@ -74,5 +74,5 @@ class HttpFile:
 
             return content
 
-        except requests.RequestException:
-            raise NetworkError(f"Request failed for URL: {self.url}")
+        except httpx.RequestError as e:
+            raise NetworkError(f"HTTP request failed: {str(e)}")

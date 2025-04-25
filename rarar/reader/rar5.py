@@ -107,7 +107,7 @@ class Rar5Reader(RarReaderBase):
         """Returns the raw file data for a given RarFile object.
 
         Args:
-            file_info (RarFile): RarFile object to download
+            file_info (RarFile): RarFile object to read
 
         Returns:
             bytes: Raw file data

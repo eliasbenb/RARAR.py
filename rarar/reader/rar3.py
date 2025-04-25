@@ -19,7 +19,7 @@ from ..const import (
 )
 from ..exceptions import (
     CompressionNotSupportedError,
-    DirectoryDownloadNotSupportedError,
+    DirectoryExtractNotSupportedError,
     InvalidRarFormatError,
     RarMarkerNotFoundError,
 )
@@ -255,7 +255,7 @@ class Rar3Reader(RarReaderBase):
                     )
                     pos += head_size
 
-                    # If this block has data, skip it too (without downloading)
+                    # If this block has data, skip it too
                     if head_flags & FLAG_HAS_DATA:
                         # Read just the ADD_SIZE field
                         add_size_data = self.read_bytes(pos - 4, 4)
@@ -279,19 +279,19 @@ class Rar3Reader(RarReaderBase):
         Only supports non-compressed files (method 0x30 "Store").
 
         Args:
-            file_info (RarFile): RarFile object to download
+            file_info (RarFile): RarFile object to read
 
         Returns:
             bytes: Raw file data
 
         Raises:
-            DirectoryDownloadNotSupportedError: If the file is a directory
+            DirectoryExtractNotSupportedError: If the file is a directory
             CompressionNotSupportedError: If the file uses compression
             NetworkError: If there's a network-related error
         """
         if file_info.is_directory:
-            raise DirectoryDownloadNotSupportedError(
-                f"Directory downloads are not supported: {file_info.path}"
+            raise DirectoryExtractNotSupportedError(
+                f"Directory extracts are not supported: {file_info.path}"
             )
 
         if file_info.method != COMPRESSION_METHODS_REVERSE["Store"]:

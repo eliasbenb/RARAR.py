@@ -52,8 +52,8 @@ class CompressionNotSupportedError(RaRarError):
     pass
 
 
-class DirectoryDownloadNotSupportedError(RaRarError):
-    """Exception raised when trying to download a directory from a remote source."""
+class DirectoryExtractNotSupportedError(RaRarError):
+    """Exception raised when trying to extract a directory from a remote source."""
 
     pass
 

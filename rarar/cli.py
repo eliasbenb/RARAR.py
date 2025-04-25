@@ -63,12 +63,12 @@ def list_rar_contents(source: str, json_output: bool = False) -> list[RarFile]:
         return []
 
 
-def download_file(source: str, file_index: int) -> bool:
-    """Download a specific file from the RAR archive.
+def extract_file(source: str, file_index: int) -> bool:
+    """Extract a specific file from the RAR archive.
 
     Args:
         source (str): URL or path to the RAR archive
-        file_index (int): 1-based index of the file to download
+        file_index (int): 1-based index of the file to extract
 
     Returns:
         bool: True if successful, False otherwise
@@ -78,28 +78,28 @@ def download_file(source: str, file_index: int) -> bool:
         reader = RarReader(source)
 
         i = 0
-        file_to_download: RarFile | None = None
+        file_to_extract: RarFile | None = None
 
         for file in reader.iter_files():
             i += 1
             if i == file_index:
-                file_to_download = file
+                file_to_extract = file
                 break
 
         if i == 0:
             logger.error("No files found in the RAR archive")
             return False
-        if file_to_download is None:
+        if file_to_extract is None:
             logger.error(f"Invalid index. Please choose between 1 and {i}")
             return False
 
-        reader.download_file(file_to_download)
+        reader.extract_file(file_to_extract)
         return True
     except RaRarError as e:
         logger.error(e)
         return False
     except Exception as e:
-        logger.error(f"Unknown error occurred while downloading: {e}")
+        logger.error(f"Unknown error occurred while extracting: {e}")
         return False
 
 
@@ -116,12 +116,12 @@ def main():
     list_parser.add_argument("source", help="URL or path to the RAR archive")
     list_parser.add_argument("--json", action="store_true", help="Output as JSON")
 
-    download_parser = subparsers.add_parser(
-        "download", help="Download a file from a RAR archive"
+    extract_parser = subparsers.add_parser(
+        "extract", help="Extract a file from a RAR archive"
     )
-    download_parser.add_argument("source", help="URL or path to the RAR archive")
-    download_parser.add_argument(
-        "file_index", type=int, help="1-based index of the file to download"
+    extract_parser.add_argument("source", help="URL or path to the RAR archive")
+    extract_parser.add_argument(
+        "file_index", type=int, help="1-based index of the file to extract"
     )
 
     args = parser.parse_args()
@@ -138,8 +138,8 @@ def main():
         if not files:
             sys.exit(1)
 
-    elif args.command == "download":
-        success = download_file(args.source, args.file_index)
+    elif args.command == "extract":
+        success = extract_file(args.source, args.file_index)
         if not success:
             sys.exit(1)
 

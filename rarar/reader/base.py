@@ -127,13 +127,13 @@ class RarReaderBase(ABC):
         """Returns the raw file data for a given RarFile object.
 
         Args:
-            file_info (RarFile): RarFile object to download
+            file_info (RarFile): RarFile object to read
 
         Returns:
             bytes: Raw file data
 
         Raises:
-            DirectoryDownloadNotSupportedError: If the file is a directory
+            DirectoryExtractNotSupportedError: If the file is a directory
             CompressionNotSupportedError: If the file uses compression
             NetworkError: If there's a network-related error
         """
@@ -147,19 +147,19 @@ class RarReaderBase(ABC):
         """
         return list(self.iter_files())
 
-    def download_file(
+    def extract_file(
         self, file_info: RarFile, output_path: str | Path | None = None
     ) -> bool:
-        """Downloads a file from the RAR archive.
+        """Extracts a file from the RAR archive.
 
         Only supports non-compressed files (method 0x30 "Store").
 
         Args:
-            file_info (RarFile): RarFile object to download
-            output_path (str | Path | None): Path to save the downloaded file. If None, uses the file name from the archive.
+            file_info (RarFile): RarFile object to extract
+            output_path (str | Path | None): Path to save the extracted file. If None, uses the file name from the archive.
 
         Returns:
-            bool: True if the file was downloaded successfully, False otherwise
+            bool: True if the file was extracted successfully, False otherwise
         """
         if not output_path:
             output_path = file_info.path
@@ -171,8 +171,8 @@ class RarReaderBase(ABC):
             data = self.read_file(file_info)
             with output_path.open("wb") as f:
                 f.write(data)
-            logger.info(f"File downloaded successfully: {output_path}")
+            logger.info(f"File extracted successfully: {output_path}")
             return True
         except Exception:
-            logger.error(f"Error downloading file: {file_info.path}", exc_info=True)
+            logger.error(f"Error extracting file: {file_info.path}", exc_info=True)
             return False

@@ -1,3 +1,4 @@
+import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -21,28 +22,27 @@ class RarFile:
         """Get the name of the file or directory."""
         return self.path.name
 
-    def __post_init__(self):
-        """Post-initialization to ensure the path is in posix format."""
-        if not isinstance(self.path, Path):
-            raise TypeError(f"Path must be a Path object, not a '{type(self.path)}'")
-        self.path = Path(self.path.as_posix())
+    @property
+    def human_size(self) -> str:
+        """Convert a size in bytes to a human-readable string
+
+        Returns:
+            str: Human-readable size string
+        """
+        size = self.size
+        for unit in ["B", "KB", "MB", "GB", "TB"]:
+            if size < 1024:
+                return f"{size:,.2f} {unit}"
+            size /= 1024
+        return f"{size:,.2f} PB"
 
     def __str__(self) -> str:
         """User-friendly string representation of the file."""
-        file_type = "Directory" if self.is_directory else "File"
-        method_name = COMPRESSION_METHODS.get(
-            self.method, f"Unknown ({hex(self.method)})"
-        )
-
-        byte_range = (
-            f", Bytes Range: {self.data_offset}-{self.next_offset - 1}"
-            if not self.is_directory
-            else ""
-        )
-
+        if self.is_directory:
+            return f"{self.path}{os.sep}"
         return (
-            f"{file_type}: {self.path} (Size: {self.size:,} bytes, Compressed: {self.compressed_size:,} bytes, "
-            + f"Method: {method_name}{byte_range})"
+            f"{self.path} ({self.human_size}) "
+            f"(Bytes: {self.data_offset}-{self.next_offset - 1})"
         )
 
     def to_dict(self) -> dict[str, Any]:

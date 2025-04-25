@@ -25,6 +25,22 @@ def setup_logging(debug: bool = False) -> None:
         logger.debug("Debug logging enabled")
 
 
+def human_size(size: int | float) -> str:
+    """Convert a size in bytes to a human-readable string.
+
+    Args:
+        size (int): Size in bytes
+
+    Returns:
+        str: Human-readable size string
+    """
+    for unit in ["B", "KB", "MB", "GB", "TB"]:
+        if size < 1024:
+            return f"{size:.2f} {unit}"
+        size /= 1024
+    return f"{size:.2f} PB"
+
+
 def list_rar_contents(source: str, json_output: bool = False) -> list[RarFile]:
     """List contents of a RAR archive and display results.
 
@@ -41,14 +57,21 @@ def list_rar_contents(source: str, json_output: bool = False) -> list[RarFile]:
         reader = RarReader(source)
 
         files = []
+        files_count = 0
+        dir_count = 0
+
         if not json_output:
             logger.info(f"RAR Archive: {source}")
 
             for i, file in enumerate(reader.iter_files(), 1):
                 files.append(file)
-                logger.info(f"  {i}. {file.path} ({file.size} bytes)")
+                if file.is_directory:
+                    dir_count += 1
+                else:
+                    files_count += 1
+                logger.info(f"{i:>3}. {file}")
 
-            logger.info(f"Found {len(files)} files/directories:")
+            logger.info(f"Found {files_count} files and {dir_count} directories")
         else:
             files = reader.list_files()
             json_data = [file.to_dict() for file in files]

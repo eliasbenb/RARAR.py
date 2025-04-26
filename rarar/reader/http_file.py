@@ -12,7 +12,7 @@ class HttpFile:
 
     def __init__(self, url: str, session: httpx.Client | None = None):
         self.url = url
-        self.session = session or httpx.Client(http2=False)
+        self.session = session or httpx.Client(http2=True, follow_redirects=True)
         self.position = 0
         self.total_downloaded = 0
         self.file_size = self._get_file_size()

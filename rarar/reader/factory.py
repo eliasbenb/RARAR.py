@@ -1,7 +1,7 @@
 import io
 import logging
 import pathlib
-from typing import BinaryIO
+from typing import BinaryIO, Generator
 
 import httpx
 
@@ -17,7 +17,7 @@ from ..exceptions import (
     UnknownSourceTypeError,
     UnsupportedRarVersionError,
 )
-from .base import RarReaderBase
+from .base import RarFile, RarReaderBase
 from .http_file import HttpFile
 from .rar3 import Rar3Reader
 from .rar5 import Rar5Reader
@@ -25,7 +25,7 @@ from .rar5 import Rar5Reader
 logger = logging.getLogger("rarar")
 
 
-class RarReader:
+class RarReader(RarReaderBase):
     """Factory class to create the appropriate RAR reader based on the format."""
 
     def __new__(
@@ -139,3 +139,23 @@ class RarReader:
                 and not file_obj.closed
             ):
                 file_obj.close()
+
+    def _find_rar_marker(self) -> int:
+        raise NotImplementedError(
+            "This is a factory class and should not be called directly."
+        )
+
+    def _parse_file_header(self, position: int) -> tuple[RarFile | None, int]:
+        raise NotImplementedError(
+            "This is a factory class and should not be called directly."
+        )
+
+    def iter_files(self) -> Generator[RarFile, None, None]:
+        raise NotImplementedError(
+            "This is a factory class and should not be called directly."
+        )
+
+    def read_file(self, file_info: RarFile) -> bytes:
+        raise NotImplementedError(
+            "This is a factory class and should not be called directly."
+        )

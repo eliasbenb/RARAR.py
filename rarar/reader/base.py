@@ -9,7 +9,7 @@ from urllib.parse import urlsplit
 import httpx
 
 from ..const import DEFAULT_CHUNK_SIZE
-from ..exceptions import UnknownSourceTypeError
+from ..exceptions import DirectoryExtractNotSupportedError, UnknownSourceTypeError
 from ..models import RarFile
 from .http_file import HttpFile
 
@@ -146,27 +146,21 @@ class RarReaderBase(ABC, Iterator[RarFile]):
         """
         pass
 
-    def extract_file(
-        self, file_info: RarFile, output_path: str | Path | None = None
-    ) -> bool:
+    def _extract_file(self, file_info: RarFile, output_path: Path) -> bool:
         """Extracts a file from the RAR archive.
-
-        Only supports non-compressed files (method 0x30 "Store").
 
         Args:
             file_info (RarFile): RarFile object to extract
-            output_path (str | Path | None): Path to save the extracted file. If None, uses the file name from the archive.
+            output_path (Path): Path to save the extracted file
 
         Returns:
             bool: True if the file was extracted successfully, False otherwise
         """
-        if not output_path:
-            output_path = file_info.path
-        else:
-            output_path = Path(output_path)
-
         try:
-            output_path.parent.mkdir(parents=True, exist_ok=True)
+            if file_info.is_directory:
+                raise DirectoryExtractNotSupportedError(
+                    "Extraction of directories is not supported"
+                )
             data = self.read_file(file_info)
             with output_path.open("wb") as f:
                 f.write(data)
@@ -175,6 +169,50 @@ class RarReaderBase(ABC, Iterator[RarFile]):
         except Exception:
             logger.error(f"Error extracting file: {file_info.path}", exc_info=True)
             return False
+
+    def _extract_all(self, output_path: Path) -> bool:
+        """Extracts all files in the RAR archive.
+
+        Args:
+            output_path (Path): Path to save the extracted directory
+
+        Returns:
+            bool: True if the all files were extracted successfully, False otherwise
+        """
+        for rar_file in self:
+            if rar_file.is_directory:
+                continue
+            output_path = output_path / rar_file.path
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            if self._extract_file(rar_file, output_path) is False:
+                return False
+        return True
+
+    def extract(
+        self, file_info: RarFile | None, output_path: str | Path | None = None
+    ) -> bool:
+        """Extract file(s) from the RAR archive.
+
+        Only supports non-compressed files (method 0x30 "Store").
+
+        Args:
+            file_info (RarFile | None): RarFile object to extract. If None, extracts all files.
+            output_path (str | Path | None): Path to save the extracted file. If None, uses the file name from the archive.
+
+        Returns:
+            bool: True if the file was extracted successfully, False otherwise
+        """
+        if output_path:
+            output_path = Path(output_path)
+        elif file_info:
+            output_path = file_info.path
+        else:
+            output_path = Path(".")
+
+        if not file_info:
+            return self._extract_all(output_path)
+        else:
+            return self._extract_file(file_info, output_path)
 
     def __iter__(self) -> Self:
         """Return self as an iterator.

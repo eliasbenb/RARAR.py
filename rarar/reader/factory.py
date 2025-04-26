@@ -150,7 +150,7 @@ class RarReader(RarReaderBase):
             "This is a factory class and should not be called directly."
         )
 
-    def iter_files(self) -> Generator[RarFile, None, None]:
+    def generate_files(self) -> Generator[RarFile, None, None]:
         raise NotImplementedError(
             "This is a factory class and should not be called directly."
         )

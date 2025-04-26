@@ -3,7 +3,7 @@ import logging
 import pathlib
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import BinaryIO, Generator
+from typing import BinaryIO, Generator, Iterator, Self
 from urllib.parse import urlsplit
 
 import httpx
@@ -16,7 +16,7 @@ from .http_file import HttpFile
 logger = logging.getLogger("rarar")
 
 
-class RarReaderBase(ABC):
+class RarReaderBase(ABC, Iterator[RarFile]):
     """Abstract base class for RAR format readers."""
 
     def __init__(
@@ -46,6 +46,7 @@ class RarReaderBase(ABC):
 
         self.chunk_size = chunk_size
         self.total_read = 0
+        self._file_generator = self.generate_files()
 
     @staticmethod
     def _is_url(source: str) -> bool:
@@ -114,8 +115,8 @@ class RarReaderBase(ABC):
         pass
 
     @abstractmethod
-    def iter_files(self) -> Generator[RarFile, None, None]:
-        """Iterate through all files in the RAR archive.
+    def generate_files(self) -> Generator[RarFile, None, None]:
+        """Generate RarFile objects for each file in the archive.
 
         Yields:
             RarFile: RarFile objects in the archive one by one
@@ -143,14 +144,6 @@ class RarReaderBase(ABC):
             NetworkError: If there's a network-related error
         """
         pass
-
-    def list_files(self) -> list[RarFile]:
-        """List all files in the RAR archive.
-
-        Returns:
-            list[RarFile]: List of RarFile objects in the archive
-        """
-        return list(self.iter_files())
 
     def extract_file(
         self, file_info: RarFile, output_path: str | Path | None = None
@@ -181,3 +174,25 @@ class RarReaderBase(ABC):
         except Exception:
             logger.error(f"Error extracting file: {file_info.path}", exc_info=True)
             return False
+
+    def __iter__(self) -> Self:
+        """Return self as an iterator.
+
+        This allows for direct iteration over the reader object.
+
+        Returns:
+            Self: Self as an iterator
+        """
+        self._file_generator = self.generate_files()
+        return self
+
+    def __next__(self) -> RarFile:
+        """Get the next file from the RAR archive.
+
+        Returns:
+            RarFile: The next RarFile object in the archive
+
+        Raises:
+            StopIteration: When there are no more files
+        """
+        return next(self._file_generator)

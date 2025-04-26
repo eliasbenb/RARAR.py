@@ -226,8 +226,8 @@ class Rar3Reader(RarReaderBase):
         else:
             return None, position + head_size
 
-    def iter_files(self) -> Generator[RarFile, None, None]:
-        """Iterate through all files in the RAR3 archive.
+    def generate_files(self) -> Generator[RarFile, None, None]:
+        """Generate RarFile objects for each file in the archive.
 
         Yields:
             RarFile: RarFile objects in the archive one by one

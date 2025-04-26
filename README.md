@@ -43,7 +43,7 @@ from rarar import RarReader
 
 source = "https://example.com/archive.rar"  # URL, file, or file-like object
 reader = RarReader(source) 
-for file in reader.list_files():
+for file in reader:
     print(f"{file.name} - {file.size} bytes")
 ```
 
@@ -54,7 +54,7 @@ from rarar import RarReader
 
 source = "./archives/archive.rar"  # URL, file, or file-like object
 reader = RarReader("https://example.com/archive.rar")
-file = next(reader.iter_files()) # Get the first file in the archive
+file = next(reader) # Get the first file in the archive
 reader.extract_file(file, "/path/to/save/file.dat")
 ```
 

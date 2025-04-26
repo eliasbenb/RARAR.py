@@ -13,7 +13,7 @@ class Rar5Reader(RarReaderBase):
     """Reader for RAR 5.0 format archives."""
 
     def _find_rar_marker(self) -> int:
-        """Find the RAR5 marker in the file using small chunk requests.
+        """Find the RAR marker in the file.
 
         Returns:
             int: Position of the RAR marker in the file
@@ -84,7 +84,7 @@ class Rar5Reader(RarReaderBase):
         return result, bytes_read
 
     def _parse_file_header(self, position: int) -> tuple[RarFile | None, int]:
-        """Parse a RAR5 file header block and return the file info and next position.
+        """Parse a file header block and return the file info and next position.
 
         Args:
             position (int): Starting position of the file header
@@ -95,11 +95,16 @@ class Rar5Reader(RarReaderBase):
         logger.error("RAR5 file header parsing not implemented yet")
         return None, position
 
-    def iter_files(self) -> Generator[RarFile, None, None]:
-        """Iterate through all files in the RAR5 archive.
+    def generate_files(self) -> Generator[RarFile, None, None]:
+        """Generate RarFile objects for each file in the archive.
 
         Yields:
             RarFile: RarFile objects in the archive one by one
+
+        Raises:
+            RarMarkerNotFoundError: If the RAR marker is not found
+            InvalidRarFormatError: If the archive format is invalid
+            NetworkError: If there's a network-related error
         """
         raise NotImplementedError("RAR5 support not fully implemented yet")
 
@@ -111,5 +116,10 @@ class Rar5Reader(RarReaderBase):
 
         Returns:
             bytes: Raw file data
+
+        Raises:
+            DirectoryExtractNotSupportedError: If the file is a directory
+            CompressionNotSupportedError: If the file uses compression
+            NetworkError: If there's a network-related error
         """
         raise NotImplementedError("RAR5 support not fully implemented yet")

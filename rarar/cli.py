@@ -64,7 +64,7 @@ def list_rar_contents(source: str, json_output: bool = False) -> list[RarFile]:
         if not json_output:
             logger.info(f"RAR Archive: {source}")
 
-            for i, file in enumerate(reader.iter_files(), 1):
+            for i, file in enumerate(reader, 1):
                 files.append(file)
                 if file.is_directory:
                     dir_count += 1
@@ -74,8 +74,7 @@ def list_rar_contents(source: str, json_output: bool = False) -> list[RarFile]:
 
             logger.info(f"Found {files_count} files and {dir_count} directories")
         else:
-            files = reader.list_files()
-            json_data = [file.to_dict() for file in files]
+            json_data = [file.to_dict() for file in list(reader)]
             print(json.dumps(json_data, indent=2))
 
         return files
@@ -105,7 +104,7 @@ def extract_file(source: str, file_index: int, output_path: str | None = None) -
         i = 0
         file_to_extract: RarFile | None = None
 
-        for file in reader.iter_files():
+        for file in reader:
             i += 1
             if i == file_index:
                 file_to_extract = file

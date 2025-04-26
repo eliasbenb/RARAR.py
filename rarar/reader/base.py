@@ -46,6 +46,7 @@ class RarReaderBase(ABC, Iterator[RarFile]):
 
         self.chunk_size = chunk_size
         self.total_read = 0
+        self._rar_marker = self._find_rar_marker()
         self._file_generator = self.generate_files()
 
     @staticmethod

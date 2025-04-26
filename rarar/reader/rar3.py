@@ -41,6 +41,7 @@ class Rar3Reader(RarReaderBase):
         Raises:
             RarMarkerNotFoundError: If the RAR marker is not found
         """
+        logger.debug("Searching for RAR3 marker in first chunk")
         # First try to find marker in the first chunk
         first_chunk_size = 8192  # Read 8KB at once
         chunk = self.read_bytes(0, first_chunk_size)
@@ -237,9 +238,7 @@ class Rar3Reader(RarReaderBase):
             InvalidRarFormatError: If the archive format is invalid
             NetworkError: If there's a network-related error
         """
-        logger.debug("Finding RAR3 marker...")
-        pos = self._find_rar_marker()
-        logger.debug(f"RAR3 marker found at position {pos}")
+        pos = self._rar_marker
         pos += len(RAR3_MARKER)  # Skip marker block
 
         logger.debug("Reading archive header...")

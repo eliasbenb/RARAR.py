@@ -27,10 +27,8 @@ pip install git+https://github.com/eliasbenb/RARAR.py.git
 >
 > Additionally, if using an HTTP URL, the server must support `Range` requests to allow for partial downloads.
 
-- Support for RAR5 archives
 - Look into support compression methods other than `Store`
 - TUI for the CLI
-- Support for multi-file downloads
 - Support for directory downloads
 - Create file tree UI for CLI's list output
 
@@ -55,7 +53,7 @@ from rarar import RarReader
 source = "./archives/archive.rar"  # URL, file, or file-like object
 reader = RarReader("https://example.com/archive.rar")
 file = next(reader) # Get the first file in the archive
-reader.extract_file(file, "/path/to/save/file.dat")
+reader.extract(file, output_path="/path/to/save/file.dat")
 ```
 
 ## CLI Usage
@@ -71,7 +69,7 @@ Random Access RAR Reader - Access RAR archives without loading the entire file i
 positional arguments:
   {list,extract}  Command to execute
     list          List contents of a RAR archive
-    extract       Extract a file from a RAR archive
+    extract       Extract files from a RAR archive
 
 options:
   -h, --help      show this help message and exit
@@ -81,11 +79,11 @@ options:
 ### Listing Contents of a RAR Archive
 
 ```bash
-rarar list <source> [--json]
+rarar list [--json] source
 ```
 
 ### Extracting a File from a RAR Archive
 
 ```bash
-rarar extract <source> <file_index> [-o <output_path>]
+rarar extract [-o OUTPUT] source [file_indices ...]
 ```

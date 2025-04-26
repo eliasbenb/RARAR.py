@@ -29,22 +29,6 @@ def setup_logging(debug: bool = False) -> None:
         logger.debug("Debug logging enabled")
 
 
-def human_size(size: int | float) -> str:
-    """Convert a size in bytes to a human-readable string.
-
-    Args:
-        size (int): Size in bytes
-
-    Returns:
-        str: Human-readable size string
-    """
-    for unit in ["B", "KB", "MB", "GB", "TB"]:
-        if size < 1024:
-            return f"{size:.2f} {unit}"
-        size /= 1024
-    return f"{size:.2f} PB"
-
-
 def list_rar_contents(source: str, json_output: bool = False) -> list[RarFile]:
     """List contents of a RAR archive and display results.
 

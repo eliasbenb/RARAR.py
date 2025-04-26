@@ -57,7 +57,7 @@ class RarReader:
                 chunk_size = DEFAULT_CHUNK_SIZE
 
         if force_version is not None:
-            if force_version == 4:
+            if force_version in (3, 4):
                 return Rar3Reader(source, chunk_size, session)
             elif force_version == 5:
                 return Rar5Reader(source, chunk_size, session)
@@ -67,9 +67,24 @@ class RarReader:
                 )
 
         # Try to detect the RAR version
-            elif isinstance(source, str) and RarReaderBase._is_url(source):
-
+        file_obj = None
+        need_to_close = False
         try:
+            if isinstance(source, (io.BufferedIOBase, io.RawIOBase)):
+                file_obj = source
+                can_reset = hasattr(file_obj, "seek")
+                need_to_close = False
+            elif isinstance(source, str) and RarReaderBase._is_url(source):
+                file_obj = HttpFile(source, session)
+                can_reset = True
+                need_to_close = True
+            elif isinstance(source, str) and pathlib.Path(source).is_file():
+                file_obj = open(source, "rb")
+                can_reset = True
+                need_to_close = True
+            else:
+                raise UnknownSourceTypeError(f"Unknown source type: {type(source)}")
+
             position = 0
             max_search = MAX_SEARCH_SIZE
             version = None
@@ -108,18 +123,19 @@ class RarReader:
             if version is None:
                 raise RarMarkerNotFoundError("No RAR marker found within search limit")
 
+            if version in (3, 4):
+                return Rar3Reader(source, chunk_size, session)
+            elif version == 5:
+                return Rar5Reader(source, chunk_size, session)
+            else:
+                raise UnsupportedRarVersionError(f"Unsupported RAR version: {version}")
+
         finally:
             # Clean up resources if needed
             if (
                 need_to_close
+                and file_obj is not None
                 and isinstance(file_obj, io.IOBase)
                 and not file_obj.closed
             ):
                 file_obj.close()
-
-        if version == 4:
-            return Rar3Reader(source, chunk_size, session)
-        elif version == 5:
-            return Rar5Reader(source, chunk_size, session)
-        else:
-            raise UnsupportedRarVersionError(f"Unsupported RAR version: {version}")

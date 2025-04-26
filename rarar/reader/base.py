@@ -35,7 +35,7 @@ class RarReaderBase(ABC):
         Raises:
             UnknownSourceTypeError: If the source type is not recognized
         """
-        if isinstance(source, (io.BufferedIOBase, io.RawIOBase)):
+        if isinstance(source, io.IOBase):
             self.file_obj = source
         elif isinstance(source, str) and self._is_url(source):
             self.file_obj = HttpFile(source, session)

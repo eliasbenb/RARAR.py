@@ -140,18 +140,33 @@ class Rar3Reader(RarReaderBase):
             # Handle filename reading
             file_name_data = reader.read(name_size)
 
-            # Handle Unicode filenames
+            logger.debug(f"Raw filename data: {file_name_data.hex()}")
+            logger.debug(f"Head flags: 0x{head_flags:x}")
+
             if head_flags & RAR3_FLAG_HAS_UNICODE_NAME:
                 logger.debug("Processing Unicode filename")
                 zero_pos = file_name_data.find(b"\x00")
                 if zero_pos != -1:
-                    file_name = file_name_data[:zero_pos].decode(
-                        "ascii", errors="replace"
-                    )
+                    # The ASCII portion actually contains UTF-8 data
+                    try:
+                        file_name = file_name_data[:zero_pos].decode("utf-8")
+                        logger.debug(f"Successfully decoded using UTF-8: {file_name}")
+                    except UnicodeDecodeError:
+                        # Fallback to the original Unicode decoding method
+                        ascii_name = file_name_data[:zero_pos].decode(
+                            "ascii", errors="replace"
+                        )
+                        unicode_data = file_name_data[zero_pos + 1 :]
+                        file_name = self._decode_rar3_unicode(ascii_name, unicode_data)
                 else:
+                    # No null byte found, try UTF-8 decoding
                     file_name = file_name_data.decode("utf-8", errors="replace")
             else:
-                file_name = file_name_data.decode("ascii", errors="replace")
+                # Try UTF-8 first, then fallback to ASCII
+                try:
+                    file_name = file_name_data.decode("utf-8")
+                except UnicodeDecodeError:
+                    file_name = file_name_data.decode("ascii", errors="replace")
 
             is_directory = (head_flags & RAR3_FLAG_DIRECTORY) == RAR3_FLAG_DIRECTORY
             logger.debug(f"{'Directory' if is_directory else 'File'}: {file_name}")
@@ -183,6 +198,92 @@ class Rar3Reader(RarReaderBase):
         except Exception as e:
             logger.error(f"Error parsing file header data at position {position}: {e}")
             return None
+
+    def _decode_rar3_unicode(self, ascii_str: str, unicode_data: bytes) -> str:
+        """Decode RAR3 Unicode encoding.
+
+        RAR3 has special Unicode encoding format where Unicode data is stored after
+        a null byte following the ASCII portion.
+
+        Args:
+            ascii_str (str): ASCII portion of the string
+            unicode_data (bytes): Encoded Unicode data
+
+        Returns:
+            str: Decoded Unicode string
+        """
+        if not unicode_data:
+            return ascii_str
+
+        result = []
+        ascii_pos = 0
+        data_pos = 0
+        high_byte = 0
+
+        logger.debug(
+            f"Decoding RAR3 Unicode - ASCII: {ascii_str}, Unicode data length: {len(unicode_data)}"
+        )
+
+        while data_pos < len(unicode_data):
+            flags = unicode_data[data_pos]
+            data_pos += 1
+
+            # Determine the number of character positions this flag byte controls
+            if flags & 0x80:
+                # Extended flag - controls up to 32 characters (16 bit pairs)
+                flag_bits = flags
+                bit_count = 1
+                while (flag_bits & (0x80 >> bit_count)) and data_pos < len(
+                    unicode_data
+                ):
+                    flag_bits = (
+                        (flag_bits & ((0x80 >> bit_count) - 1)) << 8
+                    ) | unicode_data[data_pos]
+                    data_pos += 1
+                    bit_count += 1
+                flag_count = bit_count * 4
+            else:
+                # Simple flag - controls 4 characters (4 bit pairs)
+                flag_bits = flags
+                flag_count = 4
+
+            # Process each 2-bit flag
+            for i in range(flag_count):
+                if ascii_pos >= len(ascii_str) and data_pos >= len(unicode_data):
+                    break
+
+                switch = (flag_bits >> (i * 2)) & 0x03
+
+                if switch == 0:
+                    # Use ASCII character
+                    if ascii_pos < len(ascii_str):
+                        result.append(ascii_str[ascii_pos])
+                        ascii_pos += 1
+                elif switch == 1:
+                    # Unicode character with high byte 0
+                    if data_pos < len(unicode_data):
+                        result.append(chr(unicode_data[data_pos]))
+                        data_pos += 1
+                elif switch == 2:
+                    # Unicode character with current high byte
+                    if data_pos < len(unicode_data):
+                        low_byte = unicode_data[data_pos]
+                        data_pos += 1
+                        result.append(chr(low_byte | (high_byte << 8)))
+                else:  # switch == 3
+                    # Set new high byte
+                    if data_pos < len(unicode_data):
+                        high_byte = unicode_data[data_pos]
+                        data_pos += 1
+
+        # Append any remaining ASCII characters
+        while ascii_pos < len(ascii_str):
+            result.append(ascii_str[ascii_pos])
+            ascii_pos += 1
+
+        decoded = "".join(result)
+        logger.debug(f"Decoded filename: {decoded}")
+        return decoded
 
     def _parse_file_header(self, position: int) -> tuple[RarFile | None, int]:
         """Parse a RAR3 file header block and return the file info and next position.

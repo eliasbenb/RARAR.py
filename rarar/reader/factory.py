@@ -2,7 +2,6 @@ import io
 import logging
 import pathlib
 from typing import BinaryIO
-from urllib.parse import urlsplit
 
 import httpx
 
@@ -24,22 +23,6 @@ from .rar3 import Rar3Reader
 from .rar5 import Rar5Reader
 
 logger = logging.getLogger("rarar")
-
-
-def _is_url(source: str) -> bool:
-    """Check if the source is a URL.
-
-    Args:
-        source (str): The source to check
-
-    Returns:
-        bool: True if the source is a URL, False otherwise
-    """
-    try:
-        result = urlsplit(source)
-        return bool(result.scheme and result.netloc)
-    except ValueError:
-        return False
 
 
 class RarReader:
@@ -68,7 +51,7 @@ class RarReader:
             RarMarkerNotFoundError: If no RAR marker is found
         """
         if chunk_size is None:
-            if isinstance(source, str) and _is_url(source):
+            if isinstance(source, str) and RarReaderBase._is_url(source):
                 chunk_size = HTTP_CHUNK_SIZE
             else:
                 chunk_size = DEFAULT_CHUNK_SIZE
@@ -84,20 +67,7 @@ class RarReader:
                 )
 
         # Try to detect the RAR version
-        if isinstance(source, (io.BufferedIOBase, io.RawIOBase)):
-            file_obj = source
-            can_reset = hasattr(file_obj, "seek")
-            need_to_close = False
-        elif isinstance(source, str) and _is_url(source):
-            file_obj = HttpFile(source, session)
-            can_reset = True
-            need_to_close = False
-        elif isinstance(source, str) and pathlib.Path(source).is_file():
-            file_obj = open(source, "rb")
-            can_reset = True
-            need_to_close = True
-        else:
-            raise UnknownSourceTypeError(f"Unknown source type: {type(source)}")
+            elif isinstance(source, str) and RarReaderBase._is_url(source):
 
         try:
             position = 0

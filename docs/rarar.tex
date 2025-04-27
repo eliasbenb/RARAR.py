@@ -112,7 +112,7 @@ Random access in RAR archives is a novel and unexplored area. Existing research 
 \subsection{HTTP Range Requests in Content Delivery}
 HTTP Range requests have proven valuable in various content delivery scenarios such as video streaming and resumable downloads. These applications demonstrate how requesting specific byte ranges optimizes data transfer and reduces bandwidth waste.
 
-Other systems like httpfs+ (2022) essentially treat a remote HTTP directory as a filesystem by using partial fetches to simulate file reads \cite{b6}. Our work extends these techniques to RAR archive access. To our knowledge, RARAR represents the first implementation of HTTP-based random access for RAR archives.
+Other tools like httpfs+ and rclone essentially treat a remote HTTP directory as a filesystem by using partial fetches to simulate file reads \cite{b6}. Our work extends these techniques to RAR archive access. To our knowledge, RARAR represents the first implementation of HTTP-based random access for RAR archives.
 
 \section{Technical Background}
 
@@ -204,7 +204,9 @@ Range request support varies across servers. Our implementation detects support 
 \end{itemize}
 
 \subsubsection{RAR Format Variations}
-RAR has evolved through versions 1.3, 2.0, 3.0, 4.0, and 5.0, each introducing changes to header structures and compression algorithms. Our implementation targets the widely-adopted RAR 3.0 and 4.0 formats.
+RAR has evolved through versions 1.3, 1.5, 2.x, 3.x, 4.x, and 5.x, each introducing changes to header structures and compression algorithms. Our implementation supports RAR 3.x, 4.x, and 5.x. This involved implementing multiple parsers for each major version due to their distinct header structures and block layouts. For example, 4.x stored file names in ASCII with Unicode characters being stored in seperate blocks of variable length. Decoding the file names in 4.x required a seperate, more complex logic that 5.x did not due to its native support for Unicode.
+
+To seamlessly abstract these subtle differences, RARAR employs the factory and template design patterns to automatically detect and select the appropriate parser based on the archive's version. This approach allows users to parse all supported archive versions under one unified interface without knowing the underlying archive version.
 
 \subsubsection{Reverse Engineering Approach}
 Without official documentation, our understanding derives from:
@@ -421,17 +423,14 @@ Despite its advantages, RARAR currently has several limitations:
 Several promising extensions exist:
 
 \subsubsection{Compressed File Support}
-Implementing support for common RAR compression methods would significantly enhance utility. This requires:
-\begin{itemize}
-	\item Integration of RAR decompression algorithms
-	\item Analysis of partial decompression feasibility
-	\item Optimization of compressed data retrieval
-\end{itemize}
+Implementing support for common RAR compression methods would significantly enhance utility. While feasible, this requires a deep understanding of RAR's compression algorithms, which is unfortunately proprietary. However, the RAR 5.x format introduced a new compression algorithm (PPMD) that is more accessible and documented. This could be a starting point for implementing decompression support.
 
-A promising approach involves developing partial decompression strategies that identify and download only necessary compressed blocks before performing targeted decompression.
+It is also worth noting that archives with solid compression (where multiple files are compressed together) would require downloading the entire solid block to extract any single file. This is a limitation of the RAR format itself, not RARAR.
 
-\subsubsection{RAR5 Support}
-Supporting RAR5 would extend versatility by accommodating the latest format version. Our extensible factory pattern facilitates adding new version handlers while maintaining compatibility with existing formats.
+\subsubsection{Central Directory Parsing for 5.x}
+Following the footsteps of the ZIP format, RAR 5.x introduced a central directory structure that could be leveraged for random access. The central directory contains a list of all files and their offsets, enabling efficient access without sequential parsing. However, unlike ZIP, the central directory is an optional structure in RAR 5.x, and not all archives will contain it. Implementing this feature would require additional logic to detect and parse the central directory when present. If not present, RARAR would revert to the current sequential parsing method.
+
+Implementation would involve detecting and parsing the central directory structure. When available, this feature would dramatically improve performance, especially for archives with many files, reducing time complexity from O(n) to O(1) for both listing and extraction operations.
 
 \subsection{Applications and Use Cases}
 The random access capabilities introduced by RARAR enable numerous practical applications across diverse domains:

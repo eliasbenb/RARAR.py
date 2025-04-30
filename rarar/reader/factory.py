@@ -13,6 +13,7 @@ from ..const import (
     RAR5_MARKER,
 )
 from ..exceptions import (
+    NotImplementedError,
     RarMarkerNotFoundError,
     UnknownSourceTypeError,
     UnsupportedRarVersionError,

@@ -9,7 +9,11 @@ from urllib.parse import urlsplit
 import httpx
 
 from ..const import DEFAULT_CHUNK_SIZE
-from ..exceptions import DirectoryExtractNotSupportedError, UnknownSourceTypeError
+from ..exceptions import (
+    DirectoryExtractNotSupportedError,
+    NotImplementedError,
+    UnknownSourceTypeError,
+)
 from ..models import RarFile
 from .http_file import HttpFile
 

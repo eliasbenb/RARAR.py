@@ -19,6 +19,8 @@ logger = logging.getLogger("rarar")
 class RarReaderBase(ABC, Iterator[RarFile]):
     """Abstract base class for RAR format readers."""
 
+    RAR_MARKER_SIG: bytes = b"\x99\xaa\xbb\xcc\xdd\xee\xff"
+
     def __init__(
         self,
         source: str | BinaryIO,
@@ -213,6 +215,20 @@ class RarReaderBase(ABC, Iterator[RarFile]):
             return self._extract_all(output_path)
         else:
             return self._extract_file(file_info, output_path)
+
+    def _decompress_file(self, file_info: RarFile) -> bytes:
+        """Decompress a file from the RAR archive.
+
+        Args:
+            file_info (RarFile): RarFile object to decompress
+
+        Returns:
+            bytes: Decompressed file data
+
+        Raises:
+            CompressionNotSupportedError: If the file uses compression
+        """
+        raise NotImplementedError("Decompression is a WIP")
 
     def __iter__(self) -> Self:
         """Return self as an iterator.

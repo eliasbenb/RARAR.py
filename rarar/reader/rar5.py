@@ -9,13 +9,13 @@ from ..const import (
     RAR5_BLOCK_FILE,
     RAR5_BLOCK_FLAG_DATA_AREA,
     RAR5_BLOCK_FLAG_EXTRA_DATA,
+    RAR5_COMPRESSION_METHODS_REVERSE,
     RAR5_FILE_FLAG_DIRECTORY,
     RAR5_FILE_FLAG_HAS_CRC32,
     RAR5_FILE_FLAG_HAS_MTIME,
     RAR5_MARKER,
 )
 from ..exceptions import (
-    CompressionNotSupportedError,
     DirectoryExtractNotSupportedError,
     RarMarkerNotFoundError,
 )
@@ -27,6 +27,8 @@ logger = logging.getLogger("rarar")
 
 class Rar5Reader(RarReaderBase):
     """Reader for RAR 5.0 format archives."""
+
+    RAR_MARKER_SIG = RAR5_MARKER
 
     def _find_rar_marker(self) -> int:
         """Find the RAR marker in the file.
@@ -49,7 +51,7 @@ class Rar5Reader(RarReaderBase):
                 if not chunk:
                     break
 
-                marker_pos = chunk.find(RAR5_MARKER)
+                marker_pos = chunk.find(self.RAR_MARKER_SIG)
                 if marker_pos != -1:
                     logger.debug(
                         f"RAR5 marker found at position {position + marker_pos}"
@@ -58,7 +60,7 @@ class Rar5Reader(RarReaderBase):
 
                 # Move forward by chunk size minus the marker length to ensure we don't miss it
                 # if it spans two chunks
-                position += max(1, len(chunk) - len(RAR5_MARKER) + 1)
+                position += max(1, len(chunk) - len(self.RAR_MARKER_SIG) + 1)
 
             except Exception as e:
                 logger.error(f"Error while searching for RAR5 marker: {e}")
@@ -354,16 +356,12 @@ class Rar5Reader(RarReaderBase):
                 f"Directory extracts are not supported: {file_info.path}"
             )
 
-        if file_info.method != 0:  # RAR5 store method
-            raise CompressionNotSupportedError(
-                f"Currently only uncompressed files (method 0) are supported. "
-                f"This file uses method {file_info.method}"
-            )
-
         logger.info(
             f"Reading file: {file_info.path} ({file_info.data_offset}-{file_info.next_offset - 1}) "
             f"({file_info.compressed_size} bytes)"
         )
 
-        data = self.read_bytes(file_info.data_offset, file_info.compressed_size)
-        return data
+        if file_info.method == RAR5_COMPRESSION_METHODS_REVERSE["Store"]:
+            return self.read_bytes(file_info.data_offset, file_info.compressed_size)
+        else:
+            return self._decompress_file(file_info)

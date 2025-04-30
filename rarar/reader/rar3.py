@@ -9,7 +9,6 @@ from ..const import (
     RAR3_BLOCK_END,
     RAR3_BLOCK_FILE,
     RAR3_BLOCK_HEADER,
-    RAR3_COMPRESSION_METHODS,
     RAR3_COMPRESSION_METHODS_REVERSE,
     RAR3_FLAG_DIRECTORY,
     RAR3_FLAG_HAS_DATA,
@@ -18,7 +17,6 @@ from ..const import (
     RAR3_MARKER,
 )
 from ..exceptions import (
-    CompressionNotSupportedError,
     DirectoryExtractNotSupportedError,
     InvalidRarFormatError,
     RarMarkerNotFoundError,
@@ -31,6 +29,8 @@ logger = logging.getLogger("rarar")
 
 class Rar3Reader(RarReaderBase):
     """Reader for RAR 3.x or 4.x format archives."""
+
+    RAR_MARKER_SIG = RAR3_MARKER
 
     def _find_rar_marker(self) -> int:
         """Find the RAR3 marker in the file using small chunk requests.
@@ -45,13 +45,13 @@ class Rar3Reader(RarReaderBase):
         # First try to find marker in the first chunk
         first_chunk_size = 8192  # Read 8KB at once
         chunk = self.read_bytes(0, first_chunk_size)
-        marker_pos = chunk.find(RAR3_MARKER)
+        marker_pos = chunk.find(self.RAR_MARKER_SIG)
         if marker_pos != -1:
             logger.debug(f"RAR3 marker found at position {marker_pos}")
             return marker_pos
 
         # If not found, continue with the original logic
-        position = first_chunk_size - len(RAR3_MARKER) + 1
+        position = first_chunk_size - len(self.RAR_MARKER_SIG) + 1
         max_search = MAX_SEARCH_SIZE
 
         logger.debug(
@@ -65,7 +65,7 @@ class Rar3Reader(RarReaderBase):
                 if not chunk:
                     break
 
-                marker_pos = chunk.find(RAR3_MARKER)
+                marker_pos = chunk.find(self.RAR_MARKER_SIG)
                 if marker_pos != -1:
                     logger.debug(
                         f"RAR3 marker found at position {position + marker_pos}"
@@ -479,16 +479,12 @@ class Rar3Reader(RarReaderBase):
                 f"Directory extracts are not supported: {file_info.path}"
             )
 
-        if file_info.method != RAR3_COMPRESSION_METHODS_REVERSE["Store"]:
-            raise CompressionNotSupportedError(
-                f"Currently only uncompressed files (method 0x30 'Store') are "
-                f"supported. This file uses method {hex(file_info.method)} "
-                f"({RAR3_COMPRESSION_METHODS.get(file_info.method, 'Unknown')})"
-            )
-
         logger.info(
             f"Reading file: {file_info.path} ({file_info.data_offset}-{file_info.next_offset - 1}) "
             f"({file_info.compressed_size} bytes)"
         )
-        data = self.read_bytes(file_info.data_offset, file_info.compressed_size)
-        return data
+
+        if file_info.method == RAR3_COMPRESSION_METHODS_REVERSE["Store"]:
+            return self.read_bytes(file_info.data_offset, file_info.compressed_size)
+        else:
+            return self._decompress_file(file_info)

@@ -27,6 +27,14 @@ class HttpFile:
             pass
         return None
 
+    def tell(self) -> int:
+        """Get the current position in the file.
+
+        Returns:
+            int: The current position
+        """
+        return self.position
+
     def seek(self, position: int) -> int:
         """Change the current position in the file.
 
@@ -94,3 +102,9 @@ class HttpFile:
             if "peer closed connection" in str(e).lower():
                 return b""
             raise NetworkError(f"HTTP request failed: {str(e)}")
+
+    def close(self) -> None:
+        """Close the HTTP session."""
+        if self.session:
+            self.session.close()
+        self.position = 0

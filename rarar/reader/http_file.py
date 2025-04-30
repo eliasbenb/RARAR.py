@@ -18,7 +18,11 @@ class HttpFile:
         self.file_size = self._get_file_size()
 
     def _get_file_size(self) -> int | None:
-        """Get the total file size from the server."""
+        """Get the total file size from the server.
+
+        Returns:
+            int | None: The total file size in bytes, or None if not available
+        """
         try:
             response = self.session.head(self.url)
             if response.status_code == 200:

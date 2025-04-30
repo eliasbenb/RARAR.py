@@ -19,7 +19,11 @@ class RarFile:
 
     @property
     def name(self) -> str:
-        """Get the name of the file or directory."""
+        """Get the name of the file or directory.
+
+        Returns:
+            str: Name of the file or directory
+        """
         return self.path.name
 
     @property
@@ -37,7 +41,11 @@ class RarFile:
         return f"{size:,.2f} PB"
 
     def __str__(self) -> str:
-        """User-friendly string representation of the file."""
+        """User-friendly string representation of the file.
+
+        Returns:
+            str: String representation of the RarFile object
+        """
         if self.is_directory:
             return f"{self.path}{os.sep}"
         return (

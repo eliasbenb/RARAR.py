@@ -31,7 +31,7 @@ class Rar5Reader(RarReaderBase):
     RAR_MARKER_SIG = RAR5_MARKER
 
     def _find_rar_marker(self) -> int:
-        """Find the RAR marker in the file.
+        """Find the RAR5 marker in the file.
 
         Returns:
             int: Position of the RAR marker in the file

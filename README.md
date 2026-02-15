@@ -21,15 +21,15 @@ pip install git+https://github.com/eliasbenb/RARAR.py.git
 > [!IMPORTANT]  
 > Unfortunately, due to limitations in the RAR format, RARAR cannot currently access RAR archives that are either:
 >
-> - Compressed with any compression method other than `Store`
 > - Encrypted
 > - Multi-part over HTTP
+>
+> Compressed files (non-`Store`) are supported via a fallback to the external `unrar` binary, which must be installed and available in `PATH`.
 >
 > Multi-part archives are supported for local files when opening the first volume (`.part1.rar` or `.rar` + `.r00/.r01/...`).
 >
 > Additionally, if using an HTTP URL, the server must support `Range` requests to allow for partial downloads.
 
-- Look into support compression methods other than `Store`
 - TUI for the CLI
 - Support for directory downloads
 - Create file tree UI for CLI's list output

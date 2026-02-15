@@ -37,6 +37,7 @@ class RarReaderBase(ABC, Iterator[RarFile]):
         source: str | BinaryIO,
         chunk_size: int = DEFAULT_CHUNK_SIZE,
         session: httpx.Client | None = None,
+        password: str | None = None,
     ) -> None:
         """Initialize the RAR reader with a source.
 
@@ -46,6 +47,7 @@ class RarReaderBase(ABC, Iterator[RarFile]):
             chunk_size (int): Size of chunks to read when searching
             session (httpx.Client | None): Session to use for HTTP requests
                 if source is a URL
+            password (str | None): Password for encrypted archives
 
         Raises:
             UnknownSourceTypeError: If the source type is not recognized
@@ -65,6 +67,7 @@ class RarReaderBase(ABC, Iterator[RarFile]):
             raise UnknownSourceTypeError(f"Unknown source type: {type(source)}")
 
         self.chunk_size = chunk_size
+        self.password = password
         self.total_read = 0
         self._rar_marker = self._find_rar_marker()
         self._file_generator = self.generate_files()
@@ -252,8 +255,6 @@ class RarReaderBase(ABC, Iterator[RarFile]):
     ) -> bool:
         """Extract file(s) from the RAR archive.
 
-        Only supports non-compressed files (method 0x30 "Store").
-
         Args:
             file_info (RarFile | None): RarFile object to extract. If None,
                 extracts all files.
@@ -295,12 +296,14 @@ class RarReaderBase(ABC, Iterator[RarFile]):
 
         archive_path = self._ensure_local_archive_for_unrar()
         member_name = str(file_info.path).replace("\\", "/")
+        password_switch = "-p-" if self.password is None else f"-p{self.password}"
+
         command = [
             unrar_binary,
             "p",
             "-inul",
             "-idq",
-            "-p-",
+            password_switch,
             str(archive_path),
             member_name,
         ]

@@ -21,10 +21,11 @@ pip install git+https://github.com/eliasbenb/RARAR.py.git
 > [!IMPORTANT]  
 > Unfortunately, due to limitations in the RAR format, RARAR cannot currently access RAR archives that are either:
 >
-> - Encrypted
 > - Multi-part over HTTP
 >
-> Compressed files (non-`Store`) are supported via a fallback to the external `unrar` binary, which must be installed and available in `PATH`.
+> Compressed files (non-`Store`) and encrypted file data are supported via a fallback to the external `unrar` binary, which must be installed and available in `PATH`.
+>
+> Encrypted extraction requires a password (`RarReader(..., password="...")` or CLI `--password`).
 >
 > Multi-part archives are supported for local files when opening the first volume (`.part1.rar` or `.rar` + `.r00/.r01/...`).
 >
@@ -53,7 +54,7 @@ for file in reader:
 from rarar import RarReader
 
 source = "./archives/archive.rar"  # URL, file, or file-like object
-reader = RarReader("https://example.com/archive.rar")
+reader = RarReader("https://example.com/archive.rar", password="my-password")
 file = next(reader) # Get the first file in the archive
 reader.extract(file, output_path="/path/to/save/file.dat")
 ```
@@ -80,11 +81,11 @@ options:
 ### Listing Contents of a RAR Archive
 
 ```bash
-rarar list [--json] source
+rarar list [--json] [--password PASSWORD] source
 ```
 
 ### Extracting a File from a RAR Archive
 
 ```bash
-rarar extract [-o OUTPUT] source [file_indices ...]
+rarar extract [-o OUTPUT] [--password PASSWORD] source [file_indices ...]
 ```

@@ -492,8 +492,6 @@ class Rar3Reader(RarReaderBase):
     def read_file(self, file_info: RarFile) -> bytes:
         """Returns the raw file data for a given RarFile object.
 
-        Only supports non-compressed files (method 0x30 "Store").
-
         Args:
             file_info (RarFile): RarFile object to read
 
@@ -516,7 +514,10 @@ class Rar3Reader(RarReaderBase):
             f"({file_info.compressed_size} bytes)"
         )
 
-        if file_info.method == RAR3_COMPRESSION_METHODS_REVERSE["Store"]:
+        if (
+            file_info.method == RAR3_COMPRESSION_METHODS_REVERSE["Store"]
+            and self.password is None
+        ):
             return self.read_bytes(file_info.data_offset, file_info.compressed_size)
         else:
             return self._decompress_file(file_info)

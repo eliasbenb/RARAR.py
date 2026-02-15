@@ -38,6 +38,7 @@ class RarReader(RarReaderBase):
         source: str | BinaryIO,
         chunk_size: int | None = None,
         session: httpx.Client | None = None,
+        password: str | None = None,
         force_version: int | None = None,
     ) -> RarReaderBase:
         """Create the appropriate RAR reader instance.
@@ -46,6 +47,7 @@ class RarReader(RarReaderBase):
             source (str | BinaryIO): The source to read from
             chunk_size (int | None): Size of chunks to read
             session (httpx.Client | None): Session for HTTP requests
+            password (str | None): Password for encrypted archives
             force_version (int | None): Force a specific RAR version (4 or 5)
 
         Returns:
@@ -63,9 +65,9 @@ class RarReader(RarReaderBase):
 
         if force_version is not None:
             if force_version in (3, 4):
-                return Rar3Reader(source, chunk_size, session)
+                return Rar3Reader(source, chunk_size, session, password=password)
             elif force_version == 5:
-                return Rar5Reader(source, chunk_size, session)
+                return Rar5Reader(source, chunk_size, session, password=password)
             else:
                 raise UnsupportedRarVersionError(
                     f"Unsupported RAR version: {force_version}"
@@ -131,9 +133,19 @@ class RarReader(RarReaderBase):
                 raise RarMarkerNotFoundError("No RAR marker found within search limit")
 
             if version in (3, 4):
-                return Rar3Reader(source_for_reader, chunk_size, session)
+                return Rar3Reader(
+                    source_for_reader,
+                    chunk_size,
+                    session,
+                    password=password,
+                )
             elif version == 5:
-                return Rar5Reader(source_for_reader, chunk_size, session)
+                return Rar5Reader(
+                    source_for_reader,
+                    chunk_size,
+                    session,
+                    password=password,
+                )
             else:
                 raise UnsupportedRarVersionError(f"Unsupported RAR version: {version}")
 

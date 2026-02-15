@@ -31,12 +31,17 @@ def setup_logging(debug: bool = False) -> None:
         logger.debug("Debug logging enabled")
 
 
-def list_rar_contents(source: str, json_output: bool = False) -> list[RarFile]:
+def list_rar_contents(
+    source: str,
+    json_output: bool = False,
+    password: str | None = None,
+) -> list[RarFile]:
     """List contents of a RAR archive and display results.
 
     Args:
         source (str): URL or path to the RAR archive
         json_output (bool): Whether to output as JSON
+        password (str | None): Password for encrypted archives
 
     Returns:
         list[RarFile]: List of RarFile objects representing the contents
@@ -45,7 +50,7 @@ def list_rar_contents(source: str, json_output: bool = False) -> list[RarFile]:
     logger = logging.getLogger("rarar")
     try:
         logger.debug(f"Analyzing RAR archive at: {source}")
-        reader = RarReader(source)
+        reader = RarReader(source, password=password)
 
         files = []
         files_count = 0
@@ -77,7 +82,10 @@ def list_rar_contents(source: str, json_output: bool = False) -> list[RarFile]:
 
 
 def extract(
-    source: str, file_indices: set[int] | None = None, output_path: str = "."
+    source: str,
+    file_indices: set[int] | None = None,
+    output_path: str = ".",
+    password: str | None = None,
 ) -> None:
     """Extract files from the RAR archive.
 
@@ -86,10 +94,11 @@ def extract(
         file_indices (set[int] | None): Set of indices of files to extract.
             If None, extracts all files
         output_path (str): Path to save the extracted files
+        password (str | None): Password for encrypted archives
     """
     logger = logging.getLogger("rarar")
     try:
-        reader = RarReader(source)
+        reader = RarReader(source, password=password)
 
         # If no indices provided, extract all files
         if file_indices is None:
@@ -132,6 +141,12 @@ def main():
     list_parser = subparsers.add_parser("list", help="List contents of a RAR archive")
     list_parser.add_argument("source", help="URL or path to the RAR archive")
     list_parser.add_argument("--json", action="store_true", help="Output as JSON")
+    list_parser.add_argument(
+        "-p",
+        "--password",
+        type=str,
+        help="Password for encrypted archives",
+    )
 
     extract_parser = subparsers.add_parser(
         "extract", help="Extract files from a RAR archive"
@@ -147,6 +162,12 @@ def main():
     extract_parser.add_argument(
         "-o", "--output", type=str, help="Path to save the extracted files"
     )
+    extract_parser.add_argument(
+        "-p",
+        "--password",
+        type=str,
+        help="Password for encrypted archives",
+    )
 
     args = parser.parse_args()
 
@@ -158,10 +179,15 @@ def main():
         sys.exit(1)
 
     if args.command == "list":
-        list_rar_contents(args.source, args.json)
+        list_rar_contents(args.source, args.json, password=args.password)
     elif args.command == "extract":
         file_indices = None if not args.file_indices else set(args.file_indices)
-        extract(args.source, file_indices, args.output or ".")
+        extract(
+            args.source,
+            file_indices,
+            args.output or ".",
+            password=args.password,
+        )
 
 
 if __name__ == "__main__":

@@ -14,11 +14,16 @@ from rarar.reader.multipart_file import MultipartFile
 
 class _DummyReader:
     def __init__(
-        self, source: str | io.BytesIO, chunk_size: int, session: object
+        self,
+        source: str | io.BytesIO,
+        chunk_size: int,
+        session: object,
+        password: str | None = None,
     ) -> None:
         self.source = source
         self.chunk_size = chunk_size
         self.session = session
+        self.password = password
 
 
 def test_force_version_4_uses_rar3_reader(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -74,3 +79,12 @@ def test_local_part_archive_uses_multipart_source(
 
     assert isinstance(reader, _DummyReader)
     assert isinstance(reader.source, MultipartFile)
+
+
+def test_password_is_forwarded_to_reader(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(factory, "Rar5Reader", _DummyReader)
+
+    reader = RarReader(io.BytesIO(RAR5_MARKER), force_version=5, password="secret")
+
+    assert isinstance(reader, _DummyReader)
+    assert reader.password == "secret"

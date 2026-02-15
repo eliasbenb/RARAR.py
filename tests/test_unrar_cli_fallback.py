@@ -110,3 +110,20 @@ def test_decompress_raises_for_unrar_failure(monkeypatch: pytest.MonkeyPatch) ->
     reader = _DummyReader(io.BytesIO(b"RAR"))
     with pytest.raises(CompressionNotSupportedError, match="wrong password"):
         reader._decompress_file(_compressed_file())
+
+
+def test_decompress_uses_password_switch(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured_command: list[str] = []
+
+    def fake_run(command: list[str], check: bool, capture_output: bool):
+        captured_command.extend(command)
+        return SimpleNamespace(returncode=0, stdout=b"abc", stderr=b"")
+
+    monkeypatch.setattr("rarar.reader.base.shutil.which", lambda _: "/usr/bin/unrar")
+    monkeypatch.setattr("rarar.reader.base.subprocess.run", fake_run)
+
+    reader = _DummyReader(io.BytesIO(b"RAR"), password="secret")
+    output = reader._decompress_file(_compressed_file())
+
+    assert output == b"abc"
+    assert "-psecret" in captured_command

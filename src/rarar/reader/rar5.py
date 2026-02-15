@@ -329,7 +329,10 @@ class Rar5Reader(RarReaderBase):
             f"({file_info.compressed_size} bytes)"
         )
 
-        if file_info.method == RAR5_COMPRESSION_METHODS_REVERSE["Store"]:
+        if (
+            file_info.method == RAR5_COMPRESSION_METHODS_REVERSE["Store"]
+            and self.password is None
+        ):
             return self.read_bytes(file_info.data_offset, file_info.compressed_size)
         else:
             return self._decompress_file(file_info)

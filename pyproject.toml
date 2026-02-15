@@ -6,15 +6,13 @@ readme = "README.md"
 requires-python = ">=3.10"
 
 authors = [
-    { name = "Elias Benbourenane", email = "eliasbenbourenane@gmail.com" }
+    { name = "Elias Benbourenane", email = "eliasbenbourenane@gmail.com" },
 ]
 maintainers = [
-    { name = "Elias Benbourenane", email = "eliasbenbourenane@gmail.com" }
+    { name = "Elias Benbourenane", email = "eliasbenbourenane@gmail.com" },
 ]
 
-dependencies = [
-    "httpx[http2]>=0.28.1",
-]
+dependencies = ["httpx[http2]>=0.28.1"]
 
 [project.urls]
 Homepage = "https://github.com/eliasbenb/RARAR.py"
@@ -25,19 +23,27 @@ Issues = "https://github.com/eliasbenb/RARAR.py/issues"
 [project.scripts]
 rarar = "rarar.cli:main"
 
+[tool.ruff]
+indent-width = 4
+line-length = 88
+
+[tool.ruff.format]
+docstring-code-format = true
+indent-style = "space"
+quote-style = "double"
+
+[tool.ruff.lint]
+select = ["B", "D", "DOC", "E", "F", "I", "RUF", "SIM", "UP", "W"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.uv.build-backend]
+module-name = "rarar"
+
 [build-system]
-requires = ["setuptools>=79.0", "wheel"]
-build-backend = "setuptools.build_meta"
-
-[tool.setuptools]
-packages = ["rarar", "rarar.reader"]
-
-[tool.pyright]
-include = ["rarar"]
+requires = ["uv_build>=0.9.21,<0.10.0"]
+build-backend = "uv_build"
 
 [dependency-groups]
-dev = [
-    "build>=1.2.2.post1",
-    "pytest>=8.3.5",
-    "twine>=6.1.0",
-]
+dev = ["ruff>=0.15.1", "ty>=0.0.17", "pytest>=9.0.2"]

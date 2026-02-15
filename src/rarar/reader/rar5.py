@@ -31,6 +31,7 @@ class Rar5Reader(RarReaderBase):
     """Reader for RAR 5.0 format archives."""
 
     RAR_MARKER_SIG = RAR5_MARKER
+    _last_block_type: int | None = None
 
     def _find_rar_marker(self) -> int:
         """Find the RAR5 marker in the file.
@@ -41,10 +42,18 @@ class Rar5Reader(RarReaderBase):
         Raises:
             RarMarkerNotFoundError: If the RAR marker is not found
         """
-        position = 0
+        # First try to find marker in the first chunk
+        first_chunk_size = 8192
+        chunk = self.read_bytes(0, first_chunk_size)
+        marker_pos = chunk.find(self.RAR_MARKER_SIG)
+        if marker_pos != -1:
+            logger.debug("RAR5 marker found at position %s", marker_pos)
+            return marker_pos
+
+        position = first_chunk_size - len(self.RAR_MARKER_SIG) + 1
         max_search = MAX_SEARCH_SIZE
 
-        logger.debug(f"Searching for RAR5 marker in first {max_search} bytes")
+        logger.debug("Searching for RAR5 marker in first %s bytes", max_search)
         while position < max_search:
             try:
                 chunk = self.read_bytes(
@@ -56,7 +65,7 @@ class Rar5Reader(RarReaderBase):
                 marker_pos = chunk.find(self.RAR_MARKER_SIG)
                 if marker_pos != -1:
                     logger.debug(
-                        f"RAR5 marker found at position {position + marker_pos}"
+                        "RAR5 marker found at position %s", position + marker_pos
                     )
                     return position + marker_pos
 
@@ -65,7 +74,7 @@ class Rar5Reader(RarReaderBase):
                 position += max(1, len(chunk) - len(self.RAR_MARKER_SIG) + 1)
 
             except Exception as e:
-                logger.error(f"Error while searching for RAR5 marker: {e}")
+                logger.error("Error while searching for RAR5 marker: %s", e)
                 raise
 
         logger.error("RAR5 marker not found within search limit")
@@ -80,28 +89,10 @@ class Rar5Reader(RarReaderBase):
         Returns:
             tuple[int, int]: (value, bytes_read)
         """
-        result = 0
-        bytes_read = 0
-        shift = 0
-
-        while True:
-            byte = self.read_bytes(position + bytes_read, 1)[0]
-            bytes_read += 1
-
-            # Add 7 bits from the current byte to the result
-            result |= (byte & 0x7F) << shift
-            shift += 7
-
-            # If the highest bit is not set, this is the last byte
-            if not (byte & 0x80):
-                break
-
-            # Variable length integers are limited to 10 bytes in RAR5
-            if bytes_read >= 10:
-                logger.warning("Variable-length integer exceeded 10 bytes")
-                break
-
-        return result, bytes_read
+        data = self.read_bytes(position, 10)
+        if not data:
+            return 0, 0
+        return self._read_vint_from_bytes(data)
 
     def _parse_file_header(self, position: int) -> tuple[RarFile | None, int]:
         """Parse a file header block and return the file info and next position.
@@ -113,86 +104,109 @@ class Rar5Reader(RarReaderBase):
             tuple[RarFile | None, int]: Tuple of (file_info, next_position)
         """
         try:
-            logger.debug(f"Parsing RAR5 file header at position {position}")
+            logger.debug("Parsing RAR5 file header at position %s", position)
 
-            header_crc_data = self.read_bytes(position, 4)
-            if len(header_crc_data) < 4:
-                logger.error("Not enough data for header CRC")
+            prefix = self.read_bytes(position, 14)  # CRC32 + max VINT length
+            if len(prefix) < 5:
+                logger.error("Not enough data for header prefix")
                 return None, position
-            _header_crc = struct.unpack("<I", header_crc_data)[0]
-            position += 4
 
-            # Read header size - this is the size of everything after this field
-            header_size, vint_size = self._read_vint(position)
-            position += vint_size
-            header_start_pos = position
+            header_size, vint_size = self._read_vint_from_bytes(prefix[4:])
+            if vint_size <= 0:
+                return None, position
 
-            header_type, vint_size = self._read_vint(position)
-            position += vint_size
+            header_start_pos = position + 4 + vint_size
+            block_size = 4 + vint_size + header_size
+            block = (
+                prefix
+                if len(prefix) >= block_size
+                else self.read_bytes(position, block_size)
+            )
+            if len(block) < block_size:
+                return None, position
 
-            # If not a file header, skip it
-            if header_type != RAR5_BLOCK_FILE:
-                logger.debug(f"Not a file header (type: {header_type}), skipping")
-                # Skip to the end of this header
-                next_position = (
-                    header_start_pos + header_size
-                )  # position after header size field + header size
-                return None, next_position
+            cursor = 4 + vint_size
 
-            header_flags, vint_size = self._read_vint(position)
-            position += vint_size
+            header_type, read_size = self._read_vint_from_bytes(block[cursor:])
+            if read_size <= 0:
+                return None, position
+            cursor += read_size
+            self._last_block_type = header_type
 
-            _extra_area_size = 0
+            header_flags, read_size = self._read_vint_from_bytes(block[cursor:])
+            if read_size <= 0:
+                return None, position
+            cursor += read_size
+
             if header_flags & RAR5_BLOCK_FLAG_EXTRA_DATA:
-                _extra_area_size, vint_size = self._read_vint(position)
-                position += vint_size
+                _extra_area_size, read_size = self._read_vint_from_bytes(block[cursor:])
+                if read_size <= 0:
+                    return None, position
+                cursor += read_size
 
             data_size = 0
             if header_flags & RAR5_BLOCK_FLAG_DATA_AREA:
-                data_size, vint_size = self._read_vint(position)
-                position += vint_size
+                data_size, read_size = self._read_vint_from_bytes(block[cursor:])
+                if read_size <= 0:
+                    return None, position
+                cursor += read_size
 
-            file_flags, vint_size = self._read_vint(position)
-            position += vint_size
+            next_position = header_start_pos + header_size + data_size
 
-            unpacked_size, vint_size = self._read_vint(position)
-            position += vint_size
+            if header_type != RAR5_BLOCK_FILE:
+                logger.debug("Not a file header (type: %s), skipping", header_type)
+                return None, next_position
 
-            _, vint_size = self._read_vint(position)
-            position += vint_size
+            file_flags, read_size = self._read_vint_from_bytes(block[cursor:])
+            if read_size <= 0:
+                return None, position
+            cursor += read_size
 
-            _mtime = None
+            unpacked_size, read_size = self._read_vint_from_bytes(block[cursor:])
+            if read_size <= 0:
+                return None, position
+            cursor += read_size
+
+            _attributes, read_size = self._read_vint_from_bytes(block[cursor:])
+            if read_size <= 0:
+                return None, position
+            cursor += read_size
+
             if file_flags & RAR5_FILE_FLAG_HAS_MTIME:
-                mtime_data = self.read_bytes(position, 4)
-                if len(mtime_data) >= 4:
-                    _mtime = struct.unpack("<I", mtime_data)[0]
-                    position += 4
+                if cursor + 4 > len(block):
+                    return None, position
+                cursor += 4
 
             crc32_value = 0
             if file_flags & RAR5_FILE_FLAG_HAS_CRC32:
-                crc32_data = self.read_bytes(position, 4)
-                if len(crc32_data) >= 4:
-                    crc32_value = struct.unpack("<I", crc32_data)[0]
-                    position += 4
+                if cursor + 4 > len(block):
+                    return None, position
+                crc32_value = struct.unpack_from("<I", block, cursor)[0]
+                cursor += 4
 
-            compression_info, vint_size = self._read_vint(position)
-            position += vint_size
+            compression_info, read_size = self._read_vint_from_bytes(block[cursor:])
+            if read_size <= 0:
+                return None, position
+            cursor += read_size
 
-            _host_os, vint_size = self._read_vint(position)
-            position += vint_size
+            _host_os, read_size = self._read_vint_from_bytes(block[cursor:])
+            if read_size <= 0:
+                return None, position
+            cursor += read_size
 
-            name_length, vint_size = self._read_vint(position)
-            position += vint_size
+            name_length, read_size = self._read_vint_from_bytes(block[cursor:])
+            if read_size <= 0:
+                return None, position
+            cursor += read_size
 
-            filename_data = self.read_bytes(position, name_length)
-            if len(filename_data) < name_length:
+            name_end = cursor + name_length
+            if name_end > len(block):
                 logger.error("Not enough data for filename")
                 return None, position
-            filename = filename_data.decode("utf-8", "replace")
-            position += name_length
+
+            filename = block[cursor:name_end].decode("utf-8", "replace")
 
             is_directory = (file_flags & RAR5_FILE_FLAG_DIRECTORY) != 0
-
             compression_method = (compression_info >> 7) & 0x07
 
             data_offset = header_start_pos + header_size
@@ -207,22 +221,17 @@ class Rar5Reader(RarReaderBase):
                 next_offset=data_offset + data_size,
             )
 
-            # Skip to next header
-            next_position = header_start_pos + header_size
-            if header_flags & RAR5_BLOCK_FLAG_DATA_AREA:
-                next_position += data_size
-
             logger.debug(
-                f"File header parsed: {filename} (size: {unpacked_size}, "
-                f"compressed: {data_size}, next position: {next_position})"
+                "File header parsed: %s (size: %s, compressed: %s, next position: %s)",
+                filename,
+                unpacked_size,
+                data_size,
+                next_position,
             )
             return file_info, next_position
 
         except Exception as e:
-            logger.error(f"Error parsing file header at position {position}: {e}")
-            import traceback
-
-            logger.debug(traceback.format_exc())
+            logger.error("Error parsing file header at position %s: %s", position, e)
             return None, position
 
     def _read_vint_from_bytes(self, data: bytes) -> tuple[int, int]:
@@ -273,74 +282,27 @@ class Rar5Reader(RarReaderBase):
         logger.debug("Processing RAR5 blocks...")
         while True:
             try:
-                orig_pos = pos
-
-                # Read header CRC32
                 header_crc_data = self.read_bytes(pos, 4)
                 if len(header_crc_data) < 4:
                     logger.debug("Reached end of file (incomplete header CRC)")
                     break
-                _header_crc = struct.unpack("<I", header_crc_data)[0]
-                pos += 4
+                file_info, next_pos = self._parse_file_header(pos)
+                if next_pos <= pos:
+                    logger.debug("Parser did not advance position (%s), stopping", pos)
+                    break
 
-                # Read header size - this is the size of everything after this field
-                header_size, vint_size = self._read_vint(pos)
-                pos += vint_size
-                header_start_pos = pos  # This is where header size starts counting from
-
-                # Read header type
-                header_type, vint_type_size = self._read_vint(pos)
-                pos += vint_type_size
-
-                # Read header flags
-                header_flags, vint_flags_size = self._read_vint(pos)
-                pos += vint_flags_size
-
-                logger.debug(
-                    f"Found block type {header_type} at position {orig_pos}, "
-                    f"flags: 0x{header_flags:x}"
-                )
-
-                # Calculate position after this header
-                next_pos = header_start_pos + header_size  # After the header
-
-                # If there's extra area size (not needed for positioning
-                # as it's included in header_size)
-                if header_flags & RAR5_BLOCK_FLAG_EXTRA_DATA:
-                    _, vint_extra_size = self._read_vint(pos)
-                    pos += vint_extra_size
-
-                # If there's data area size
-                if header_flags & RAR5_BLOCK_FLAG_DATA_AREA:
-                    data_size, vint_data_size = self._read_vint(pos)
-                    pos += vint_data_size
-                    next_pos += data_size  # Add data size to next position
-
-                if header_type == RAR5_BLOCK_END:
+                if self._last_block_type == RAR5_BLOCK_END:
                     logger.debug("Found end of archive marker")
                     break
 
-                if header_type == RAR5_BLOCK_FILE:
-                    # Reset position to start of header
-                    file_header_pos = orig_pos
-                    file_info, file_next_pos = self._parse_file_header(file_header_pos)
-                    if file_info:
-                        yield file_info
-                    pos = file_next_pos
-                else:
-                    # Skip other block types
-                    logger.debug(
-                        f"Skipping non-file block type {header_type}, moving to "
-                        f"position {next_pos}"
-                    )
-                    pos = next_pos
+                if file_info:
+                    yield file_info
+
+                pos = next_pos
 
             except Exception as e:
-                logger.error(f"Error while processing RAR5 blocks: {e}")
-                logger.debug(f"Position at error: {pos}")
-                import traceback
-
-                logger.debug(traceback.format_exc())
+                logger.error("Error while processing RAR5 blocks: %s", e)
+                logger.debug("Position at error: %s", pos)
                 break
 
     def read_file(self, file_info: RarFile) -> bytes:

@@ -8,7 +8,7 @@ from typing import Any
 from rarar.const import RAR3_COMPRESSION_METHODS
 
 
-@dataclass
+@dataclass(slots=True)
 class RarFile:
     """Represents a file or directory in a RAR archive."""
 

@@ -1,6 +1,5 @@
 """RAR3 format reader."""
 
-import io
 import logging
 import struct
 from collections.abc import Generator
@@ -27,6 +26,9 @@ from rarar.models import RarFile
 from rarar.reader.base import RarReaderBase
 
 logger = logging.getLogger("rarar")
+
+_HDR_BASE = struct.Struct("<HBHH")
+_FILE_FIXED = struct.Struct("<IIBIIBBHI")
 
 
 class Rar3Reader(RarReaderBase):
@@ -101,50 +103,59 @@ class Rar3Reader(RarReaderBase):
             RarFile | None: Parsed file info or None if not a file block
         """
         try:
+            if len(header_data) < 7:
+                return None
+
             # Parse basic header fields
-            _head_crc, head_type, head_flags = struct.unpack("<HBH", header_data[:5])
-            head_size = struct.unpack("<H", header_data[5:7])[0]
+            _head_crc, head_type, head_flags, head_size = _HDR_BASE.unpack_from(
+                header_data, 0
+            )
 
             # If not a file block, return None
             if head_type != RAR3_BLOCK_FILE:
-                logger.debug(f"Not a file block (type: {head_type}), skipping")
+                logger.debug("Not a file block (type: %s), skipping", head_type)
                 return None
 
-            # Use BytesIO to read from the buffer
-            reader = io.BytesIO(header_data[7:])
+            if head_size > len(header_data):
+                return None
 
-            # Parse file header fields
-            pack_size = struct.unpack("<I", reader.read(4))[0]
-            unp_size = struct.unpack("<I", reader.read(4))[0]
-            _host_os = reader.read(1)[0]
-            file_crc = struct.unpack("<I", reader.read(4))[0]
-            _ftime = struct.unpack("<I", reader.read(4))[0]
-            _unp_ver = reader.read(1)[0]
-            method = reader.read(1)[0]
-            name_size = struct.unpack("<H", reader.read(2))[0]
-            _attr = struct.unpack("<I", reader.read(4))[0]
+            # Parse fixed fields directly from header bytes
+            (
+                pack_size,
+                unp_size,
+                _host_os,
+                file_crc,
+                _ftime,
+                _unp_ver,
+                method,
+                name_size,
+                _attr,
+            ) = _FILE_FIXED.unpack_from(header_data, 7)
 
             # Initialize high pack/unp sizes
             high_pack_size = 0
             high_unp_size = 0
 
             # Check if high pack/unp sizes are present
-            current_pos = 4 + 4 + 1 + 4 + 4 + 1 + 1 + 2 + 4
+            name_start = 7 + _FILE_FIXED.size
             if head_flags & RAR3_FLAG_HAS_HIGH_SIZE:
                 logger.debug("File has high pack/unp sizes")
-                high_pack_size = struct.unpack("<I", reader.read(4))[0]
-                high_unp_size = struct.unpack("<I", reader.read(4))[0]
-                current_pos += 8
+                high_pack_size, high_unp_size = struct.unpack_from(
+                    "<II", header_data, name_start
+                )
+                name_start += 8
 
             # Calculate actual sizes
             full_pack_size = pack_size + (high_pack_size << 32)
             full_unp_size = unp_size + (high_unp_size << 32)
 
             # Handle filename reading
-            file_name_data = reader.read(name_size)
+            name_end = name_start + name_size
+            if name_end > head_size:
+                return None
+            file_name_data = header_data[name_start:name_end]
 
-            logger.debug(f"Raw filename data: {file_name_data.hex()}")
-            logger.debug(f"Head flags: 0x{head_flags:x}")
+            logger.debug("Head flags: 0x%x", head_flags)
 
             if head_flags & RAR3_FLAG_HAS_UNICODE_NAME:
                 logger.debug("Processing Unicode filename")
@@ -153,7 +164,7 @@ class Rar3Reader(RarReaderBase):
                     # The ASCII portion actually contains UTF-8 data
                     try:
                         file_name = file_name_data[:zero_pos].decode("utf-8")
-                        logger.debug(f"Successfully decoded using UTF-8: {file_name}")
+                        logger.debug("Successfully decoded using UTF-8: %s", file_name)
                     except UnicodeDecodeError:
                         # Fallback to the original Unicode decoding method
                         ascii_name = file_name_data[:zero_pos].decode(
@@ -172,7 +183,7 @@ class Rar3Reader(RarReaderBase):
                     file_name = file_name_data.decode("ascii", errors="replace")
 
             is_directory = (head_flags & RAR3_FLAG_DIRECTORY) == RAR3_FLAG_DIRECTORY
-            logger.debug(f"{'Directory' if is_directory else 'File'}: {file_name}")
+            logger.debug("%s: %s", "Directory" if is_directory else "File", file_name)
 
             # Calculate positions for byte range info
             data_offset = position + head_size
@@ -194,13 +205,17 @@ class Rar3Reader(RarReaderBase):
             )
 
             logger.debug(
-                f"File header parsed: {file_name} (Size: {full_unp_size}, "
-                f"Compressed: {full_pack_size})"
+                "File header parsed: %s (Size: %s, Compressed: %s)",
+                file_name,
+                full_unp_size,
+                full_pack_size,
             )
             return file_info
 
         except Exception as e:
-            logger.error(f"Error parsing file header data at position {position}: {e}")
+            logger.error(
+                "Error parsing file header data at position %s: %s", position, e
+            )
             return None
 
     def _decode_rar3_unicode(self, ascii_str: str, unicode_data: bytes) -> str:
@@ -225,8 +240,9 @@ class Rar3Reader(RarReaderBase):
         high_byte = 0
 
         logger.debug(
-            f"Decoding RAR3 Unicode - ASCII: {ascii_str}, Unicode data length: "
-            f"{len(unicode_data)}"
+            "Decoding RAR3 Unicode - ASCII: %s, Unicode data length: %s",
+            ascii_str,
+            len(unicode_data),
         )
 
         while data_pos < len(unicode_data):
@@ -287,7 +303,7 @@ class Rar3Reader(RarReaderBase):
             ascii_pos += 1
 
         decoded = "".join(result)
-        logger.debug(f"Decoded filename: {decoded}")
+        logger.debug("Decoded filename: %s", decoded)
         return decoded
 
     def _parse_file_header(self, position: int) -> tuple[RarFile | None, int]:
@@ -301,7 +317,7 @@ class Rar3Reader(RarReaderBase):
         Returns:
             tuple[RarFile | None, int]: Tuple of (file_info, next_position)
         """
-        logger.debug(f"Parsing RAR3 file header at position {position}")
+        logger.debug("Parsing RAR3 file header at position %s", position)
 
         # Read initial chunk
         header_chunk = self.read_bytes(position, 128)
@@ -310,12 +326,13 @@ class Rar3Reader(RarReaderBase):
         if len(header_chunk) < 7:
             return None, position
 
-        _head_crc, head_type, _head_flags = struct.unpack("<HBH", header_chunk[:5])
-        head_size = struct.unpack("<H", header_chunk[5:7])[0]
+        _head_crc, head_type, _head_flags, head_size = _HDR_BASE.unpack_from(
+            header_chunk, 0
+        )
 
         # If not a file block, skip it
         if head_type != RAR3_BLOCK_FILE:
-            logger.debug(f"Not a file block (type: {head_type}), skipping")
+            logger.debug("Not a file block (type: %s), skipping", head_type)
             return None, position + head_size
 
         # Check if we need more data
@@ -350,7 +367,7 @@ class Rar3Reader(RarReaderBase):
         logger.debug("Reading archive header...")
         header_data = self.read_bytes(pos, 7)
         head_type = header_data[2]
-        head_size = struct.unpack("<H", header_data[5:7])[0]
+        head_size = int.from_bytes(header_data[5:7], "little")
 
         if head_type != RAR3_BLOCK_HEADER:
             logger.error("Invalid RAR3 format - archive header not found")
@@ -383,8 +400,12 @@ class Rar3Reader(RarReaderBase):
 
             # Process header
             head_type = header_data[2]
-            head_flags = struct.unpack("<H", header_data[3:5])[0]
-            head_size = struct.unpack("<H", header_data[5:7])[0]
+            head_flags = int.from_bytes(header_data[3:5], "little")
+            head_size = int.from_bytes(header_data[5:7], "little")
+
+            if head_size < 7:
+                logger.debug("Invalid header size (%s), stopping parse", head_size)
+                break
 
             if head_type == RAR3_BLOCK_END:
                 logger.debug("End of archive marker found")
@@ -427,15 +448,18 @@ class Rar3Reader(RarReaderBase):
                 if file_info:
                     file_count += 1
                     logger.debug(
-                        f"Processed file {file_count}: {file_info.path} "
-                        f"({file_info.size} bytes, "
-                        f"{file_info.compressed_size} compressed)"
+                        "Processed file %s: %s (%s bytes, %s compressed)",
+                        file_count,
+                        file_info.path,
+                        file_info.size,
+                        file_info.compressed_size,
                     )
                     yield file_info
             else:
                 logger.debug(
-                    f"Skipping non-file block of type {head_type} at position "
-                    f"{pos + buffer_offset}"
+                    "Skipping non-file block of type %s at position %s",
+                    head_type,
+                    pos + buffer_offset,
                 )
                 buffer_offset += head_size
 
@@ -452,7 +476,7 @@ class Rar3Reader(RarReaderBase):
                         add_size = struct.unpack("<I", add_size_data)[0]
 
                     buffer_offset += add_size
-                    logger.debug(f"Skipping additional {add_size} bytes of data")
+                    logger.debug("Skipping additional %s bytes of data", add_size)
 
                     # If we've moved past the buffer, update position and refill
                     if buffer_offset >= len(current_buffer):

@@ -1,8 +1,10 @@
+"""HTTP file handler."""
+
 import logging
 
 import httpx
 
-from ..exceptions import NetworkError
+from rarar.exceptions import NetworkError
 
 logger = logging.getLogger("rarar")
 
@@ -11,6 +13,7 @@ class HttpFile:
     """Class for handling HTTP file operations with range requests."""
 
     def __init__(self, url: str, session: httpx.Client | None = None):
+        """Initialize the HttpFile with a URL."""
         self.url = url
         self.session = session or httpx.Client(http2=True, follow_redirects=True)
         self.position = 0
@@ -105,7 +108,7 @@ class HttpFile:
         except httpx.RequestError as e:
             if "peer closed connection" in str(e).lower():
                 return b""
-            raise NetworkError(f"HTTP request failed: {str(e)}")
+            raise NetworkError(f"HTTP request failed: {e}") from e
 
     def close(self) -> None:
         """Close the HTTP session."""

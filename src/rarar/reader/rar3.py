@@ -1,10 +1,12 @@
+"""RAR3 format reader."""
+
 import io
 import logging
 import struct
+from collections.abc import Generator
 from pathlib import Path
-from typing import Generator
 
-from ..const import (
+from rarar.const import (
     MAX_SEARCH_SIZE,
     RAR3_BLOCK_END,
     RAR3_BLOCK_FILE,
@@ -16,13 +18,13 @@ from ..const import (
     RAR3_FLAG_HAS_UNICODE_NAME,
     RAR3_MARKER,
 )
-from ..exceptions import (
+from rarar.exceptions import (
     DirectoryExtractNotSupportedError,
     InvalidRarFormatError,
     RarMarkerNotFoundError,
 )
-from ..models import RarFile
-from .base import RarReaderBase
+from rarar.models import RarFile
+from rarar.reader.base import RarReaderBase
 
 logger = logging.getLogger("rarar")
 
@@ -55,7 +57,8 @@ class Rar3Reader(RarReaderBase):
         max_search = MAX_SEARCH_SIZE
 
         logger.debug(
-            f"RAR3 marker not found in first chunk, searching in first {max_search} bytes"
+            f"RAR3 marker not found in first chunk, searching in first "
+            f"{max_search} bytes"
         )
         while position < max_search:
             try:
@@ -72,8 +75,8 @@ class Rar3Reader(RarReaderBase):
                     )
                     return position + marker_pos
 
-                # Move forward by chunk size minus the marker length to ensure we don't miss it
-                # if it spans two chunks
+                # Move forward by chunk size minus marker length
+                # to ensure we don't miss it if it spans chunks
                 position += max(1, len(chunk) - len(RAR3_MARKER) + 1)
 
             except Exception:
@@ -191,7 +194,8 @@ class Rar3Reader(RarReaderBase):
             )
 
             logger.debug(
-                f"File header parsed: {file_name} (Size: {full_unp_size}, Compressed: {full_pack_size})"
+                f"File header parsed: {file_name} (Size: {full_unp_size}, "
+                f"Compressed: {full_pack_size})"
             )
             return file_info
 
@@ -221,7 +225,8 @@ class Rar3Reader(RarReaderBase):
         high_byte = 0
 
         logger.debug(
-            f"Decoding RAR3 Unicode - ASCII: {ascii_str}, Unicode data length: {len(unicode_data)}"
+            f"Decoding RAR3 Unicode - ASCII: {ascii_str}, Unicode data length: "
+            f"{len(unicode_data)}"
         )
 
         while data_pos < len(unicode_data):
@@ -423,12 +428,14 @@ class Rar3Reader(RarReaderBase):
                     file_count += 1
                     logger.debug(
                         f"Processed file {file_count}: {file_info.path} "
-                        f"({file_info.size} bytes, {file_info.compressed_size} compressed)"
+                        f"({file_info.size} bytes, "
+                        f"{file_info.compressed_size} compressed)"
                     )
                     yield file_info
             else:
                 logger.debug(
-                    f"Skipping non-file block of type {head_type} at position {pos + buffer_offset}"
+                    f"Skipping non-file block of type {head_type} at position "
+                    f"{pos + buffer_offset}"
                 )
                 buffer_offset += head_size
 
@@ -480,7 +487,8 @@ class Rar3Reader(RarReaderBase):
             )
 
         logger.info(
-            f"Reading file: {file_info.path} ({file_info.data_offset}-{file_info.next_offset - 1}) "
+            f"Reading file: {file_info.path} "
+            f"({file_info.data_offset}-{file_info.next_offset - 1}) "
             f"({file_info.compressed_size} bytes)"
         )
 

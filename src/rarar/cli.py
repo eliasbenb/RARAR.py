@@ -1,11 +1,13 @@
+"""Command line interface for RARAR."""
+
 import argparse
 import json
 import logging
 import sys
 
-from .exceptions import RaRarError
-from .models import RarFile
-from .reader import RarReader
+from rarar.exceptions import RaRarError
+from rarar.models import RarFile
+from rarar.reader import RarReader
 
 
 def setup_logging(debug: bool = False) -> None:
@@ -37,7 +39,8 @@ def list_rar_contents(source: str, json_output: bool = False) -> list[RarFile]:
         json_output (bool): Whether to output as JSON
 
     Returns:
-        list[RarFile]: List of RarFile objects representing the contents of the RAR archive
+        list[RarFile]: List of RarFile objects representing the contents
+            of the RAR archive
     """
     logger = logging.getLogger("rarar")
     try:
@@ -80,7 +83,8 @@ def extract(
 
     Args:
         source (str): URL or path to the RAR archive
-        file_indices (set[int] | None): Set of indices of files to extract. If None, extracts all files
+        file_indices (set[int] | None): Set of indices of files to extract.
+            If None, extracts all files
         output_path (str): Path to save the extracted files
     """
     logger = logging.getLogger("rarar")
@@ -118,7 +122,8 @@ def extract(
 def main():
     """Main entry point for the CLI application."""
     parser = argparse.ArgumentParser(
-        description="Random Access RAR Reader - Access RAR archives without loading the entire file into memory"
+        description="Random Access RAR Reader - Access RAR archives without "
+        "loading the entire file into memory"
     )
     parser.add_argument("--debug", action="store_true", help="Enable debug logging")
 
@@ -136,7 +141,8 @@ def main():
         "file_indices",
         type=int,
         nargs="*",
-        help="1-based indices of files to extract. If not provided, extracts all files.",
+        help="1-based indices of files to extract. If not provided, "
+        "extracts all files.",
     )
     extract_parser.add_argument(
         "-o", "--output", type=str, help="Path to save the extracted files"

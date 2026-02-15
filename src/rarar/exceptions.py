@@ -1,3 +1,6 @@
+"""Exceptions for RARAR."""
+
+
 class RaRarError(Exception):
     """Base exception for all RARAR errors."""
 
@@ -47,7 +50,7 @@ class FileExtractionError(RaRarError):
 
 
 class CompressionNotSupportedError(RaRarError):
-    """Exception raised when trying to extract a file with unsupported compression method."""
+    """Exception raised when trying to extract a file with unsupported compression."""
 
     pass
 

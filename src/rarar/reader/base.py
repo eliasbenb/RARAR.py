@@ -1,19 +1,23 @@
+"""Base classes for RAR readers."""
+
 import io
 import logging
 import pathlib
 from abc import ABC, abstractmethod
+from collections.abc import Generator, Iterator
 from pathlib import Path
-from typing import BinaryIO, Generator, Iterator, Self
+from typing import BinaryIO, Self
 from urllib.parse import urlsplit
 
 import httpx
 
-from ..const import DEFAULT_CHUNK_SIZE
-from ..exceptions import (
+from rarar.const import DEFAULT_CHUNK_SIZE
+from rarar.exceptions import (
     DirectoryExtractNotSupportedError,
     NotImplementedError,
     UnknownSourceTypeError,
 )
+
 from ..models import RarFile
 from .http_file import HttpFile
 
@@ -34,9 +38,11 @@ class RarReaderBase(ABC, Iterator[RarFile]):
         """Initialize the RAR reader with a source.
 
         Args:
-            source (str | BinaryIO): Either a file-like object with seek and read methods, a URL, or a local file path
+            source (str | BinaryIO): Either a file-like object with seek and read
+                methods, a URL, or a local file path
             chunk_size (int): Size of chunks to read when searching
-            session (httpx.Client | None): Session to use for HTTP requests if source is a URL
+            session (httpx.Client | None): Session to use for HTTP requests
+                if source is a URL
 
         Raises:
             UnknownSourceTypeError: If the source type is not recognized
@@ -46,7 +52,7 @@ class RarReaderBase(ABC, Iterator[RarFile]):
         elif isinstance(source, str) and self._is_url(source):
             self.file_obj = HttpFile(source, session)
         elif isinstance(source, str) and pathlib.Path(source).is_file():
-            self.file_obj = open(source, "rb")
+            self.file_obj = open(source, "rb")  # noqa: SIM115
         else:
             raise UnknownSourceTypeError(f"Unknown source type: {type(source)}")
 
@@ -202,8 +208,10 @@ class RarReaderBase(ABC, Iterator[RarFile]):
         Only supports non-compressed files (method 0x30 "Store").
 
         Args:
-            file_info (RarFile | None): RarFile object to extract. If None, extracts all files.
-            output_path (str | Path | None): Path to save the extracted file. If None, uses the file name from the archive.
+            file_info (RarFile | None): RarFile object to extract. If None,
+                extracts all files.
+            output_path (str | Path | None): Path to save the extracted file.
+                If None, uses the file name from the archive.
 
         Returns:
             bool: True if the file was extracted successfully, False otherwise

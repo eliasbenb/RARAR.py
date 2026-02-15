@@ -1,27 +1,30 @@
+"""Factory for creating RAR readers."""
+
 import io
 import logging
 import pathlib
-from typing import BinaryIO, Generator
+from collections.abc import Generator
+from typing import BinaryIO
 
 import httpx
 
-from ..const import (
+from rarar.const import (
     DEFAULT_CHUNK_SIZE,
     HTTP_CHUNK_SIZE,
     MAX_SEARCH_SIZE,
     RAR3_MARKER,
     RAR5_MARKER,
 )
-from ..exceptions import (
+from rarar.exceptions import (
     NotImplementedError,
     RarMarkerNotFoundError,
     UnknownSourceTypeError,
     UnsupportedRarVersionError,
 )
-from .base import RarFile, RarReaderBase
-from .http_file import HttpFile
-from .rar3 import Rar3Reader
-from .rar5 import Rar5Reader
+from rarar.reader.base import RarFile, RarReaderBase
+from rarar.reader.http_file import HttpFile
+from rarar.reader.rar3 import Rar3Reader
+from rarar.reader.rar5 import Rar5Reader
 
 logger = logging.getLogger("rarar")
 
@@ -80,7 +83,7 @@ class RarReader(RarReaderBase):
                 can_reset = True
                 need_to_close = True
             elif isinstance(source, str) and pathlib.Path(source).is_file():
-                file_obj = open(source, "rb")
+                file_obj = open(source, "rb")  # noqa: SIM115
                 can_reset = True
                 need_to_close = True
             else:
@@ -152,11 +155,13 @@ class RarReader(RarReaderBase):
         )
 
     def generate_files(self) -> Generator[RarFile, None, None]:
+        """Generate RarFile objects for all files in the archive."""
         raise NotImplementedError(
             "This is a factory class and should not be called directly."
         )
 
     def read_file(self, file_info: RarFile) -> bytes:
+        """Read the contents of a file from the archive."""
         raise NotImplementedError(
             "This is a factory class and should not be called directly."
         )

@@ -1,3 +1,5 @@
+"""Constants for RARAR."""
+
 # Default chunk size for searching and reading
 DEFAULT_CHUNK_SIZE = 4096
 HTTP_CHUNK_SIZE = 32768

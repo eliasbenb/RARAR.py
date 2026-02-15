@@ -1,7 +1,9 @@
-from .base import RarReaderBase
-from .factory import RarReader
-from .http_file import HttpFile
-from .rar3 import Rar3Reader
-from .rar5 import Rar5Reader
+"""Reader module for RARAR."""
 
-__all__ = ["RarReader", "RarReaderBase", "HttpFile", "Rar3Reader", "Rar5Reader"]
+from rarar.reader.base import RarReaderBase
+from rarar.reader.factory import RarReader
+from rarar.reader.http_file import HttpFile
+from rarar.reader.rar3 import Rar3Reader
+from rarar.reader.rar5 import Rar5Reader
+
+__all__ = ["HttpFile", "Rar3Reader", "Rar5Reader", "RarReader", "RarReaderBase"]

@@ -35,8 +35,16 @@ quote-style = "double"
 [tool.ruff.lint]
 select = ["B", "D", "DOC", "E", "F", "I", "RUF", "SIM", "UP", "W"]
 
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["D"]
+
 [tool.ruff.lint.pydocstyle]
 convention = "google"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+addopts = "-ra"
 
 [tool.uv.build-backend]
 module-name = "rarar"

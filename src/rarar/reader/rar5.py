@@ -1,9 +1,11 @@
+"""RAR5 format reader."""
+
 import logging
 import struct
+from collections.abc import Generator
 from pathlib import Path
-from typing import Generator
 
-from ..const import (
+from rarar.const import (
     MAX_SEARCH_SIZE,
     RAR5_BLOCK_END,
     RAR5_BLOCK_FILE,
@@ -15,12 +17,12 @@ from ..const import (
     RAR5_FILE_FLAG_HAS_MTIME,
     RAR5_MARKER,
 )
-from ..exceptions import (
+from rarar.exceptions import (
     DirectoryExtractNotSupportedError,
     RarMarkerNotFoundError,
 )
-from ..models import RarFile
-from .base import RarReaderBase
+from rarar.models import RarFile
+from rarar.reader.base import RarReaderBase
 
 logger = logging.getLogger("rarar")
 
@@ -58,8 +60,8 @@ class Rar5Reader(RarReaderBase):
                     )
                     return position + marker_pos
 
-                # Move forward by chunk size minus the marker length to ensure we don't miss it
-                # if it spans two chunks
+                # Move forward by chunk size minus marker length
+                # to ensure we don't miss it if it spans chunks
                 position += max(1, len(chunk) - len(self.RAR_MARKER_SIG) + 1)
 
             except Exception as e:
@@ -156,7 +158,7 @@ class Rar5Reader(RarReaderBase):
             unpacked_size, vint_size = self._read_vint(position)
             position += vint_size
 
-            attributes, vint_size = self._read_vint(position)
+            _, vint_size = self._read_vint(position)
             position += vint_size
 
             _mtime = None
@@ -211,8 +213,8 @@ class Rar5Reader(RarReaderBase):
                 next_position += data_size
 
             logger.debug(
-                f"File header parsed: {filename} (size: {unpacked_size}, compressed: {data_size}, "
-                f"next position: {next_position})"
+                f"File header parsed: {filename} (size: {unpacked_size}, "
+                f"compressed: {data_size}, next position: {next_position})"
             )
             return file_info, next_position
 
@@ -295,15 +297,17 @@ class Rar5Reader(RarReaderBase):
                 pos += vint_flags_size
 
                 logger.debug(
-                    f"Found block type {header_type} at position {orig_pos}, flags: 0x{header_flags:x}"
+                    f"Found block type {header_type} at position {orig_pos}, "
+                    f"flags: 0x{header_flags:x}"
                 )
 
                 # Calculate position after this header
                 next_pos = header_start_pos + header_size  # After the header
 
-                # If there's extra area size (not needed for positioning as it's included in header_size)
+                # If there's extra area size (not needed for positioning
+                # as it's included in header_size)
                 if header_flags & RAR5_BLOCK_FLAG_EXTRA_DATA:
-                    extra_area_size, vint_extra_size = self._read_vint(pos)
+                    _, vint_extra_size = self._read_vint(pos)
                     pos += vint_extra_size
 
                 # If there's data area size
@@ -326,7 +330,8 @@ class Rar5Reader(RarReaderBase):
                 else:
                     # Skip other block types
                     logger.debug(
-                        f"Skipping non-file block type {header_type}, moving to position {next_pos}"
+                        f"Skipping non-file block type {header_type}, moving to "
+                        f"position {next_pos}"
                     )
                     pos = next_pos
 
@@ -357,7 +362,8 @@ class Rar5Reader(RarReaderBase):
             )
 
         logger.info(
-            f"Reading file: {file_info.path} ({file_info.data_offset}-{file_info.next_offset - 1}) "
+            f"Reading file: {file_info.path} "
+            f"({file_info.data_offset}-{file_info.next_offset - 1}) "
             f"({file_info.compressed_size} bytes)"
         )
 

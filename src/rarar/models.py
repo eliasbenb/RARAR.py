@@ -1,13 +1,17 @@
+"""Data models for RARAR."""
+
 import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from .const import RAR3_COMPRESSION_METHODS
+from rarar.const import RAR3_COMPRESSION_METHODS
 
 
 @dataclass
 class RarFile:
+    """Represents a file or directory in a RAR archive."""
+
     path: Path
     size: int
     compressed_size: int
@@ -28,7 +32,7 @@ class RarFile:
 
     @property
     def human_size(self) -> str:
-        """Convert a size in bytes to a human-readable string
+        """Convert a size in bytes to a human-readable string.
 
         Returns:
             str: Human-readable size string

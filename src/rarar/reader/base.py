@@ -3,6 +3,9 @@
 import io
 import logging
 import pathlib
+import shutil
+import subprocess
+import tempfile
 from abc import ABC, abstractmethod
 from collections.abc import Generator, Iterator
 from pathlib import Path
@@ -13,8 +16,8 @@ import httpx
 
 from rarar.const import DEFAULT_CHUNK_SIZE
 from rarar.exceptions import (
+    CompressionNotSupportedError,
     DirectoryExtractNotSupportedError,
-    NotImplementedError,
     UnknownSourceTypeError,
 )
 from rarar.models import RarFile
@@ -47,11 +50,16 @@ class RarReaderBase(ABC, Iterator[RarFile]):
         Raises:
             UnknownSourceTypeError: If the source type is not recognized
         """
+        self._source_path: Path | None = None
+        self._unrar_temp_dir: tempfile.TemporaryDirectory[str] | None = None
+        self._unrar_archive_path: Path | None = None
+
         if isinstance(source, io.IOBase):
             self.file_obj = source
         elif isinstance(source, str) and self._is_url(source):
             self.file_obj = HttpFile(source, session)
         elif isinstance(source, str) and pathlib.Path(source).is_file():
+            self._source_path = pathlib.Path(source)
             self.file_obj = open_local_rar_source(pathlib.Path(source))
         else:
             raise UnknownSourceTypeError(f"Unknown source type: {type(source)}")
@@ -60,6 +68,45 @@ class RarReaderBase(ABC, Iterator[RarFile]):
         self.total_read = 0
         self._rar_marker = self._find_rar_marker()
         self._file_generator = self.generate_files()
+
+    def __del__(self) -> None:
+        """Clean up temporary resources used for external decompression."""
+        temp_dir = getattr(self, "_unrar_temp_dir", None)
+        if temp_dir is not None:
+            temp_dir.cleanup()
+
+    def _ensure_local_archive_for_unrar(self) -> Path:
+        """Return a local archive path suitable for the ``unrar`` CLI.
+
+        Returns:
+            Path: Local archive path.
+        """
+        if self._source_path is not None:
+            return self._source_path
+
+        if self._unrar_archive_path is not None:
+            return self._unrar_archive_path
+
+        self._unrar_temp_dir = tempfile.TemporaryDirectory(prefix="rarar-unrar-")
+        archive_path = Path(self._unrar_temp_dir.name) / "archive.rar"
+
+        previous_position: int | None = None
+        if hasattr(self.file_obj, "tell") and hasattr(self.file_obj, "seek"):
+            previous_position = self.file_obj.tell()
+            self.file_obj.seek(0)
+
+        with archive_path.open("wb") as output_file:
+            while True:
+                chunk = self.file_obj.read(1024 * 1024)
+                if not chunk:
+                    break
+                output_file.write(chunk)
+
+        if previous_position is not None:
+            self.file_obj.seek(previous_position)
+
+        self._unrar_archive_path = archive_path
+        return archive_path
 
     @staticmethod
     def _is_url(source: str) -> bool:
@@ -240,7 +287,56 @@ class RarReaderBase(ABC, Iterator[RarFile]):
         Raises:
             CompressionNotSupportedError: If the file uses compression
         """
-        raise NotImplementedError("Decompression is a WIP")
+        unrar_binary = shutil.which("unrar")
+        if unrar_binary is None:
+            raise CompressionNotSupportedError(
+                "Cannot extract compressed files without the 'unrar' binary in PATH"
+            )
+
+        archive_path = self._ensure_local_archive_for_unrar()
+        member_name = str(file_info.path).replace("\\", "/")
+        command = [
+            unrar_binary,
+            "p",
+            "-inul",
+            "-idq",
+            "-p-",
+            str(archive_path),
+            member_name,
+        ]
+
+        result = subprocess.run(
+            command,
+            check=False,
+            capture_output=True,
+        )
+
+        stdout = result.stdout
+        stderr_text = result.stderr.decode("utf-8", errors="replace").strip()
+
+        if result.returncode != 0:
+            error_message = stderr_text or f"unrar exited with code {result.returncode}"
+            raise CompressionNotSupportedError(
+                f"Failed to decompress '{file_info.path}': {error_message}"
+            )
+
+        if stdout:
+            return stdout
+
+        error_text = stderr_text.lower()
+        error_tokens = (
+            "password",
+            "encrypted",
+            "cannot find",
+            "no files to extract",
+            "checksum error",
+        )
+        if any(token in error_text for token in error_tokens):
+            raise CompressionNotSupportedError(
+                f"Failed to decompress '{file_info.path}': {stderr_text}"
+            )
+
+        return stdout
 
     def __iter__(self) -> Self:
         """Return self as an iterator.

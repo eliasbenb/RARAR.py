@@ -23,6 +23,7 @@ from rarar.exceptions import (
 )
 from rarar.reader.base import RarFile, RarReaderBase
 from rarar.reader.http_file import HttpFile
+from rarar.reader.multipart_file import open_local_rar_source
 from rarar.reader.rar3 import Rar3Reader
 from rarar.reader.rar5 import Rar5Reader
 
@@ -72,6 +73,7 @@ class RarReader(RarReaderBase):
 
         # Try to detect the RAR version
         file_obj = None
+        source_for_reader: str | BinaryIO = source
         need_to_close = False
         try:
             if isinstance(source, (io.BufferedIOBase, io.RawIOBase)):
@@ -83,9 +85,10 @@ class RarReader(RarReaderBase):
                 can_reset = True
                 need_to_close = True
             elif isinstance(source, str) and pathlib.Path(source).is_file():
-                file_obj = open(source, "rb")  # noqa: SIM115
+                file_obj = open_local_rar_source(pathlib.Path(source))
+                source_for_reader = file_obj
                 can_reset = True
-                need_to_close = True
+                need_to_close = False
             else:
                 raise UnknownSourceTypeError(f"Unknown source type: {type(source)}")
 
@@ -128,9 +131,9 @@ class RarReader(RarReaderBase):
                 raise RarMarkerNotFoundError("No RAR marker found within search limit")
 
             if version in (3, 4):
-                return Rar3Reader(source, chunk_size, session)
+                return Rar3Reader(source_for_reader, chunk_size, session)
             elif version == 5:
-                return Rar5Reader(source, chunk_size, session)
+                return Rar5Reader(source_for_reader, chunk_size, session)
             else:
                 raise UnsupportedRarVersionError(f"Unsupported RAR version: {version}")
 

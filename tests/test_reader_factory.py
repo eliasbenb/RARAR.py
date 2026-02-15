@@ -1,6 +1,7 @@
 """Tests for reader factory behavior."""
 
 import io
+from pathlib import Path
 
 import pytest
 
@@ -8,6 +9,7 @@ from rarar.const import RAR3_MARKER, RAR5_MARKER
 from rarar.exceptions import UnsupportedRarVersionError
 from rarar.reader import factory
 from rarar.reader.factory import RarReader
+from rarar.reader.multipart_file import MultipartFile
 
 
 class _DummyReader:
@@ -56,3 +58,19 @@ def test_detects_rar5_marker(monkeypatch: pytest.MonkeyPatch) -> None:
     reader = RarReader(io.BytesIO(data))
 
     assert isinstance(reader, _DummyReader)
+
+
+def test_local_part_archive_uses_multipart_source(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setattr(factory, "Rar3Reader", _DummyReader)
+
+    first = tmp_path / "set.part1.rar"
+    second = tmp_path / "set.part2.rar"
+    first.write_bytes(RAR3_MARKER + b"abc")
+    second.write_bytes(b"def")
+
+    reader = RarReader(str(first))
+
+    assert isinstance(reader, _DummyReader)
+    assert isinstance(reader.source, MultipartFile)

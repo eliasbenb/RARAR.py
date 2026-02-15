@@ -23,7 +23,9 @@ pip install git+https://github.com/eliasbenb/RARAR.py.git
 >
 > - Compressed with any compression method other than `Store`
 > - Encrypted
-> - Multi-part
+> - Multi-part over HTTP
+>
+> Multi-part archives are supported for local files when opening the first volume (`.part1.rar` or `.rar` + `.r00/.r01/...`).
 >
 > Additionally, if using an HTTP URL, the server must support `Range` requests to allow for partial downloads.
 
@@ -40,7 +42,7 @@ pip install git+https://github.com/eliasbenb/RARAR.py.git
 from rarar import RarReader
 
 source = "https://example.com/archive.rar"  # URL, file, or file-like object
-reader = RarReader(source) 
+reader = RarReader(source)
 for file in reader:
     print(f"{file.name} - {file.size} bytes")
 ```
@@ -59,7 +61,6 @@ reader.extract(file, output_path="/path/to/save/file.dat")
 ## CLI Usage
 
 You can also use the RARAR package via the command-line interface to list and extract files from a RAR archive.
-
 
 ```
 usage: rarar [-h] [--debug] {list,extract} ...

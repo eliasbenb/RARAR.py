@@ -17,9 +17,9 @@ from rarar.exceptions import (
     NotImplementedError,
     UnknownSourceTypeError,
 )
-
-from ..models import RarFile
-from .http_file import HttpFile
+from rarar.models import RarFile
+from rarar.reader.http_file import HttpFile
+from rarar.reader.multipart_file import open_local_rar_source
 
 logger = logging.getLogger("rarar")
 
@@ -52,7 +52,7 @@ class RarReaderBase(ABC, Iterator[RarFile]):
         elif isinstance(source, str) and self._is_url(source):
             self.file_obj = HttpFile(source, session)
         elif isinstance(source, str) and pathlib.Path(source).is_file():
-            self.file_obj = open(source, "rb")  # noqa: SIM115
+            self.file_obj = open_local_rar_source(pathlib.Path(source))
         else:
             raise UnknownSourceTypeError(f"Unknown source type: {type(source)}")
 
